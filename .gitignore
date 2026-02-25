@@ -1,0 +1,14 @@
+# Cache
+.gutenberg_cache/
+__pycache__/
+
+# State files (large, regenerable)
+corpus_search_state.json
+letter_search_state.json
+sweep_log.txt
+
+# OS
+.DS_Store
+
+# Private
+cryptanalysis-research.md
