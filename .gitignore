@@ -12,6 +12,7 @@ sweep_log.txt
 
 # Private
 cryptanalysis-research.md
+hn-post.md
 
 # Regenerable data
 bigram_tables.json
