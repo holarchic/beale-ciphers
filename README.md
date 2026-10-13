@@ -1,22 +1,59 @@
-# Beale Ciphers: Statistical Proof of a 140-Year-Old Hoax
+# Beale Ciphers
+
+Statistical proof the Beale ciphers are a hoax (Bayes factor ≈ 2×10⁷), and a reconstruction of how they were faked.
+
+> **Status:** Complete (February 2026). All 11 phases are done and the findings are final. Reusable: `beale.py` (cipher data, book-cipher codecs, stats battery, English-likeness scoring) and `beale_doi_wordlist.py` (the 1,311-word Beale-variant Declaration of Independence).
+
+<img src="phase8_multi_metric_b1.png" width="800" alt="Six histograms comparing B1's statistics with simulated ciphers from five construction methods">
+
+*B1 (red dashed line) against simulated ciphers from genuine encoding and four fabrication methods. On distinct ratio and serial correlation it sits outside all five. The sequential page-scanning model built in Phase 8 matches it within 1σ.*
+
+## The Question
 
 In 1885, a pamphlet appeared in Virginia describing three coded messages hiding the location of a buried treasure worth millions. One cipher (B2) was solvable using the Declaration of Independence as a key. The other two have never been cracked — because they were never real ciphers.
 
+Are B1 and B3 genuine ciphers with a key nobody has found, or fabrications? And if they were fabricated, how?
+
+## What We Found
+
 **This repo identifies exactly how the hoax was constructed, reconstructs the hoaxer's physical workflow, and resolves every major anomaly in the 140-year debate.** Combined Bayes Factor ≈ 2 × 10⁷. All code and data included to reproduce everything.
 
-## Attribution
+1. **B1 and B3 are fabricated. B2 is statistically distinguishable from fabrication.** B1 and B3 fail every test B2 passes, and no key in 9,500+ Gutenberg texts turns them into language.
+2. **The hoaxer wrote nonsense letters and encoded them by scanning forward through a printed 4-page copy of the Declaration (~325 words per page).** B3's maximum is 975 (end of page 3) and B1's maximum in-range value is 1,300 (end of page 4). 325 is the only page size from 250 to 400 that hits both (P ≈ 0.0001).
+3. **The Gillogly strings are the hoaxer lapsing into the alphabet.** Alphabet-laced gibberish produces runs of 17+ characters 11% of the time.
+4. **The hoaxer tired as they went.** Serial correlation rises from the first quarter to the last in both ciphers (combined p ≤ 4×10⁻⁸), and the construction model doesn't predict it.
+5. **B3 is too short for what B2 says it holds.** 618 characters for 30 people's names, residences and next of kin; zero of 10,000 simulations fit (mean required: 1,194).
+6. **The order was B2, then B3, then B1.** B3 is methodical work (reset_prob ≈ 0.01) and B1 is sloppy (reset_prob ≈ 0.65).
 
-For those who care about such things, the majority of the analysis and code in this repo was produced by Claude Opus 4.6 (Anthropic), with david guiding Claude, providing insights, direction and critical review throughout the process.
+### Formal Bayesian Model (Phase 11)
 
-## How a Book Cipher Works
+A Bayes Factor is a way of comparing how well two hypotheses explain the evidence. A BF of 10 means the data is 10× more likely under one hypothesis than the other. A BF of 100 is strong evidence. A BF of 10⁷ is overwhelming.
 
-A book cipher turns a message into a sequence of numbers using a shared text (the "key"). For each letter you want to encode, you find a word in the key text that starts with that letter, and write down that word's position number. To encode the letter "t", you might pick word 58 ("the"), word 400 ("truth"), or word 912 ("to") — all valid choices that decode back to "t". These alternatives are called **homophones**: multiple numbers that map to the same letter.
+We combined five independent evidence streams, each with conservatively estimated likelihoods:
+
+| Stream | P(data\|hoax) | P(data\|genuine) | Likelihood Ratio |
+|--------|:---:|:---:|---:|
+| Corpus failure (0/9,500 texts) | 0.95 | 0.10 | 9.5 |
+| Construction model fit | 0.30 | 0.02 | 15 |
+| Page boundaries (dual hit) | 0.40 | 0.007 | 57 |
+| Fatigue gradient | 0.15 | 0.005 | 30 |
+| B3 length impossibility | 0.80 | 0.01 | 80 |
+
+**Combined Bayes Factor ≈ 2 × 10⁷.** The data is twenty million times more likely under the hoax hypothesis than the genuine hypothesis. Even starting from a strong prior toward genuine (P(hoax) = 0.01 — "I'm 99% sure these are real"), the posterior exceeds 99.99% hoax. Leave-one-out analysis: dropping any single evidence stream still yields BF > 10⁵ (>99.9% even with the conservative prior).
+
+## How
+
+Phases 1-7 rule out a real cipher. Phase 8 rebuilds the hoax. Phases 9-11 test B2, B3's length, the order of construction and the statistics themselves. Each phase is one script (see [Phases](#phases)).
+
+### How a Book Cipher Works
+
+A book cipher turns a message into a sequence of numbers using a shared text (the "key"). For each letter you want to encode, you find a word in the key text that starts with that letter, and write down that word's position number. To encode the letter "t", you might pick word 3 ("the"), word 75 ("truths"), or word 14 ("to") — all valid choices that decode back to "t". These alternatives are called **homophones**: multiple numbers that map to the same letter.
 
 The solved Beale cipher (B2) uses the Declaration of Independence as its key text, with 1,311 numbered words. For example, the number 115 points to the 115th word ("instituted"), decoding to the letter "i".
 
 This means a genuine book cipher encoder has a **choice** for every letter — pick any word starting with that letter. How you make that choice leaves a statistical fingerprint. Pick your favorites from memory? You'll reuse a small set of numbers. Scan the page sequentially? Your numbers will trend upward. These patterns are invisible to the naked eye, but they show up clearly under statistical analysis.
 
-## The Three Ciphers at a Glance
+### The Three Ciphers at a Glance
 
 | | B2 (solved) | B1 ("vault location") | B3 ("names of depositors") |
 |---|---|---|---|
@@ -29,7 +66,7 @@ This means a genuine book cipher encoder has a **choice** for every letter — p
 
 B2 behaves like a genuine book cipher. B1 and B3 fail every test that B2 passes.
 
-## Due Diligence: Ruling Out a Real Cipher (Phases 1-7)
+### Due Diligence: Ruling Out a Real Cipher (Phases 1-7)
 
 Before concluding these ciphers are fake, we exhaustively tested every serious hypothesis for them being real.
 
@@ -47,13 +84,13 @@ Before concluding these ciphers are fake, we exhaustively tested every serious h
 
 **The bottom line:** 7 phases, 9,500+ texts, multiple cipher models, four languages. No hypothesis for a genuine cipher survived. This is where most analyses stop — concluding the ciphers are "probably fake" based on absence of evidence. We kept going.
 
-## The Inversion: Stop Cracking, Start Building (Phase 8)
+### The Inversion: Stop Cracking, Start Building (Phase 8)
 
 Every prior analysis asked the same question: *what key decrypts these ciphers?* We asked a different one: **if you were faking a book cipher in the 1880s, sitting at a desk with a printed copy of the Declaration of Independence, how would you actually do it?**
 
 This is the shift from cryptanalysis to forensic document analysis. Instead of looking for the signal in the noise, we tried to build the noise and see if it matched.
 
-### Testing Construction Methods (8a-8b)
+#### Testing Construction Methods (8a-8b)
 
 We simulated six different ways someone might fabricate a book cipher, each reflecting a different level of sophistication:
 
@@ -70,7 +107,7 @@ Method 6 leaves a telltale fingerprint: **serial correlation**. Because you're s
 
 B1 and B3 match **sequential-gibberish**. Not genuine. Not random. Not any of the other fabrication methods. The hoaxer wrote nonsense letters and encoded them by scanning forward through a physical copy of the Declaration of Independence.
 
-### The Reset Sweep: Calibrating the Human Element (8c)
+#### The Reset Sweep: Calibrating the Human Element (8c)
 
 The sequential-gibberish model has one free parameter: how often the hoaxer "loses their place" and has to reset to a random position in the text. Imagine running your finger along a page of dense 1880s type — eventually you lose track and have to jump back to find your bearings.
 
@@ -83,7 +120,7 @@ Same method, dramatically different discipline. This isn't two hoaxers — it's 
 
 This also explains the **distinct ratio** — the percentage of unique numbers in each cipher. A methodical sequential scanner reuses numbers less often (higher distinct ratio) because they're always moving forward to new words. A sloppy scanner who keeps resetting will land on the same popular words repeatedly. B3's distinct ratio (43%) and B1's (57%) both fall within 1σ of what the model predicts for their respective reset rates.
 
-### The Physical Evidence: Page Boundaries (8d-8e)
+#### The Physical Evidence: Page Boundaries (8d-8e)
 
 Here's where statistics meets physical forensics.
 
@@ -106,7 +143,7 @@ The construction model, now page-constrained, matches both ciphers within 1σ on
 | **Serial correlation** | 0.04 | 0.62 | 0.25 |
 | **Model fit (SC, DR)** | N/A | z = 0.3, 0.1 | z = 0.3, 0.9 |
 
-### Resolving the Gillogly Paradox (8e)
+#### Resolving the Gillogly Paradox (8e)
 
 For 44 years, the strongest argument *against* the hoax hypothesis has been the Gillogly strings.
 
@@ -124,7 +161,7 @@ The Gillogly string isn't a hidden signal leaking through the wrong key. It's th
 
 Monte Carlo verification: pure random gibberish produces longest ascending runs of ~5-6 characters. Alphabet-laced gibberish (where 70% of the time the hoaxer lapses into the alphabet) produces runs of 17+ characters 11% of the time. Serial correlation and distinct ratio remain within 1σ of B1 at all contamination levels — the alphabet lapsing doesn't disrupt the construction fingerprint.
 
-### The Fatigue Gradient (8f)
+#### The Fatigue Gradient (8f)
 
 We divided each cipher into quarters and measured the serial correlation in each segment — quarters being a natural choice that gives enough data points per segment for stable statistics while still showing a trend. (The result is robust: the same upward slope holds whether we divide into 3, 5, 6, 7, or 8 segments.) If the hoaxer maintained consistent effort throughout, the correlation should be roughly flat. Instead, both ciphers show monotonically increasing serial correlation from beginning to end — the hoaxer got measurably lazier as they went:
 
@@ -141,7 +178,7 @@ Permutation test (10,000 shuffles): B1 slope p < 0.001, B3 slope p < 0.0001, com
 
 Critically, the construction model does NOT predict this. When we run simulated hoax ciphers, they show zero average fatigue gradient — the model uses a constant reset probability throughout. This is **independent evidence** of sequential human construction. We didn't go looking for it; it emerged from the data, and it's exactly the kind of signal you'd expect from a human doing tedious manual work — something no statistical model of hoax construction would think to fake.
 
-## Confirming B2 Is Real (Phase 9)
+### Confirming B2 Is Real (Phase 9)
 
 If B1 and B3 are fabricated, is B2 genuinely different — or just a better fake?
 
@@ -153,13 +190,13 @@ Per-letter Spearman positional correlation confirms this. For each letter of the
 
 One more detail: B2's plaintext contains 15 positions requiring letters x and y, which have zero homophones in the DoI (no word in the Declaration starts with x or y). The encoder used ad-hoc workarounds — special decode rules and what appear to be transcription errors. A hoaxer controlling the plaintext would simply avoid those letters. The fact that they're present supports genuine forward encoding of a real message that happened to contain x's and y's.
 
-## B3 Can't Contain What It Claims To (Phase 10)
+### B3 Can't Contain What It Claims To (Phase 10)
 
 B2's decoded text describes B3 as containing the names, residences, and next-of-kin of 30 people. B3 has 618 characters. Is that enough space?
 
 We ran 10,000 Monte Carlo simulations using period-appropriate 1820s Virginia names, county-level residences, and next-of-kin entries. Mean required length: 1,194 characters. **Zero simulations fit in 618 characters.** B3 is 52% of the minimum length needed for its stated contents. It's not that B3 is a tight squeeze — it's physically impossible for it to contain what B2 says it contains.
 
-### Construction Order: B2 → B3 → B1 (Phase 10)
+#### Construction Order: B2 → B3 → B1 (Phase 10)
 
 Cross-cipher analysis reveals the order of fabrication:
 
@@ -171,25 +208,9 @@ The evidence: each cipher starts fresh (B1-Q1 = -0.07, B3-Q1 = 0.08 — near zer
 
 The discipline degradation from B3 to B1 tells a human story: the hoaxer's first attempt was painstaking, the second was "good enough." Anyone who's done tedious manual work twice will recognize the pattern.
 
-## Formal Bayesian Model (Phase 11)
+### Robustness Checks (Phase 11)
 
-A Bayes Factor is a way of comparing how well two hypotheses explain the evidence. A BF of 10 means the data is 10× more likely under one hypothesis than the other. A BF of 100 is strong evidence. A BF of 10⁷ is overwhelming.
-
-We combined five independent evidence streams, each with conservatively estimated likelihoods:
-
-| Stream | P(data\|hoax) | P(data\|genuine) | Likelihood Ratio |
-|--------|:---:|:---:|---:|
-| Corpus failure (0/9,500 texts) | 0.95 | 0.10 | 9.5 |
-| Construction model fit | 0.30 | 0.02 | 15 |
-| Page boundaries (dual hit) | 0.40 | 0.007 | 57 |
-| Fatigue gradient | 0.15 | 0.005 | 30 |
-| B3 length impossibility | 0.80 | 0.01 | 80 |
-
-**Combined Bayes Factor ≈ 2 × 10⁷.** The data is twenty million times more likely under the hoax hypothesis than the genuine hypothesis. Even starting from a strong prior toward genuine (P(hoax) = 0.01 — "I'm 99% sure these are real"), the posterior exceeds 99.99% hoax. Leave-one-out analysis: dropping any single evidence stream still yields BF > 10⁵ (>99.9% even with the conservative prior).
-
-Phase 11 also addresses multiple testing (11/15 tests survive Bonferroni correction), cross-validation (parameters recover in open grid search), test statistic independence (4 independent evidence groups, not 5), and rules out multi-text key schemes quantitatively.
-
-**Known residuals:** junction effect residual z ≈ 4; B2's memorization mechanism is descriptive, not mechanistic; specific Gillogly error patterns not modeled at character level.
+The Bayesian model is under [What We Found](#formal-bayesian-model-phase-11). Phase 11 also addresses multiple testing (11/15 tests survive Bonferroni correction), cross-validation (parameters recover in open grid search), test statistic independence (4 independent evidence groups, not 6), and rules out multi-text key schemes quantitatively.
 
 ## Reproduce
 
@@ -243,7 +264,9 @@ python3 phase6_doi_variant.py --all
 python3 phase7_multilingual.py --build-tables && python3 phase7_multilingual.py --sweep
 ```
 
-## Phases
+The cipher numbers and the Beale-variant DoI ship in the repo. Phase 4 downloads texts from Project Gutenberg into `.gutenberg_cache/`, and the phase 5 and phase 7 sweeps read that cache, so run phase 4 first. Nothing calls a paid service. Phases 1, 2, 3 and 8 write their charts to the working directory by default, overwriting the committed PNGs (pass `--no-plots` or `--save-dir`).
+
+### Phases
 
 | Phase | Script | What |
 |-------|--------|------|
@@ -259,31 +282,35 @@ python3 phase7_multilingual.py --build-tables && python3 phase7_multilingual.py 
 | 10 | `phase10_b3_cross_cipher.py` | B3 length feasibility, cross-cipher session analysis, construction ordering |
 | 11 | `phase11_methodology.py` | Formal Bayesian model, multiple comparison, cross-validation |
 
-## File Structure
+## Limits and Prior Art
 
-```
-beale.py                     # Shared module: ciphers, codecs, stats, scoring
-beale_doi_wordlist.py        # Beale-variant DoI as 1311-word tuple
-phase1_reproduce.py          # Reproduce published analyses
-phase2_monte_carlo.py        # Monte Carlo classification
-phase3_bigram.py             # Bigram analysis
-phase4_corpus.py             # Word-level corpus search
-phase5_letter_cipher.py      # Letter-index hypothesis
-phase6_doi_variant.py        # DoI variant optimization
-phase7_multilingual.py       # Multi-language hypothesis
-phase8_hoax_construction.py  # Hoax construction method identification
-phase9_b2_analysis.py        # B2 construction method analysis
-phase10_b3_cross_cipher.py   # B3 length + cross-cipher analysis
-phase11_methodology.py       # Methodological rigor response
-```
+**Known residuals:** junction effect residual z ≈ 4; B2's memorization mechanism is descriptive, not mechanistic; specific Gillogly error patterns not modeled at character level.
 
-## Key References
+The statistics identify the construction method. They can't name the hoaxer (Ward, who published the 1885 pamphlet, is the most parsimonious candidate).
+
+The likelihoods in the Bayesian table are judgement calls, set conservatively. Leave-one-out shows no single stream carries the result.
+
+The page model predicts a specific printing of the Declaration (~325 words per page, using "inalienable" rather than "unalienable"). Nobody has found it yet.
+
+### Key References
 
 - Gillogly, J.F. (1980). "Breaking the Beale Cipher: Not Yet." *Cryptologia* 4(3).
 - Nickell, J. (1982). "Discovered: The Secret of Beale's Treasure." *Virginia Magazine of History and Biography* 90(3).
 - Wase, P. (2013). "The Beale Ciphers: Number-Theoretic Analysis." *Cryptologia* 37(3).
 - Pelling, N. *Cipher Mysteries* blog. Ongoing analysis of multi-layer hypothesis.
 
+## Open Questions and Reusable Parts
+
+- **Find the printing.** A 4-page octavo Declaration at ~325 words per page is a testable prediction. The best lead is *The American's Guide* (Hogan & Thompson, 1840), digitised by the Library of Congress. Candidates and next steps are in [`doi_printing_research.md`](doi_printing_research.md).
+- **Close the residuals.** A character-level model of the Gillogly errors (why "ii" and "mm" appear in the 17-char run), and a mechanism for B2's reuse of 180 distinct numbers across 763 positions.
+- **Reuse the toolkit.** `beale.py` holds the three ciphers, word-level and letter-index codecs, the stats battery (Benford, last-digit, distinct ratio, letter frequency, Gillogly runs), English-likeness scoring and Gutenberg corpus utilities; `python3 beale.py` runs its self-test. `beale_doi_wordlist.py` is the Beale-variant Declaration as a 1,311-word tuple (eight changes from the standard text, plus three decode overrides).
+
+Issues and replications are welcome, failed replications most of all.
+
+## Attribution
+
+For those who care about such things, the majority of the analysis and code in this repo was produced by Claude Opus 4.6 (Anthropic), with david guiding Claude, providing insights, direction and critical review throughout the process.
+
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
