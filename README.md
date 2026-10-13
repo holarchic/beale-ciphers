@@ -18,7 +18,7 @@ We asked whether B1 and B3 are real ciphers with a key nobody has found or fakes
 
 **B1 and B3 were never real ciphers.** This repo identifies how the hoax was constructed, down to the hoaxer's physical workflow, and resolves every major anomaly in the 140-year debate. Combined Bayes factor ≈ 2 × 10⁷. All the code is here, and the data either ships with the repo or downloads from Project Gutenberg.
 
-1. **B2 behaves like a genuine cipher and B1 and B3 don't.** B2 is statistically distinguishable from fabrication. B1 and B3 fail every test B2 passes, and no key in 9,500+ Gutenberg texts turns them into language.
+1. **B2 behaves like a genuine cipher and B1 and B3 don't.** B2 is statistically distinguishable from fabrication. B1 and B3 fail the bigram and serial-correlation tests that B2 passes, and no key in 9,500+ Gutenberg texts turns them into language.
 2. **The hoaxer wrote nonsense letters and encoded them by scanning forward through a printed 4-page copy of the Declaration (~325 words per page).** B3's maximum is 975 (end of page 3) and B1's maximum in-range value is 1,300 (end of page 4). 325 is the only page size from 250 to 400 that hits both (P ≈ 0.0001).
 3. **The Gillogly strings are the hoaxer lapsing into the alphabet.** Alphabet-laced gibberish (lapsing 70% of the time) produces runs of 17+ characters 11% of the time.
 4. **The hoaxer tired as they went.** Serial correlation rises from the first quarter to the last in both ciphers (combined p ≤ 4×10⁻⁸), and the construction model doesn't predict it.
@@ -58,19 +58,19 @@ So a genuine encoder has a **choice** for every letter, and how they make it lea
 | | B2 (solved) | B1 ("vault location") | B3 ("names of depositors") |
 |---|---|---|---|
 | **Bigram score** | -2.805 (English) | -3.375 (noise) | -3.331 (noise) |
-| **Benford's law** | Moderate fit | Fails (p<0.001) | Fails (p<0.001) |
-| **Last-digit uniformity** | Non-uniform (genuine) | Uniform (hoax signal) | Uniform (hoax signal) |
+| **Benford's law** | Fails (p<0.001), χ² 34.6 | Fails (p<0.001), χ² 52.1 | Fails (p<0.001), χ² 60.8 |
+| **Last-digit uniformity (13 bases)** | Non-uniform in 10 of 13 | Non-uniform in 9 of 13 (uniform in bases 3, 7, 9, 13) | Uniform in 9 of 13 (non-uniform in 5, 8, 10, 11) |
 | **Distinct ratio** | 24% (expected) | 57% (anomalous) | 43% (anomalous) |
 | **Serial correlation** | 0.04 (random selection) | 0.25 (sequential scan) | 0.62 (strongly sequential) |
 | **Key search (9,500+ texts)** | DoI = correct key | No key found | No key found |
 
-B2 behaves like a genuine book cipher but B1 and B3 fail every test that B2 passes.
+B2 behaves like a genuine book cipher. B1 and B3 differ from it on bigram score, distinct ratio, serial correlation and key search, but Benford's law and last digits don't separate the three: all of them fail Benford, and B1's last digits are non-uniform in most bases, like B2's.
 
 ### Due Diligence: Ruling Out a Real Cipher (Phases 1-7)
 
 We tested every serious hypothesis for a real cipher before calling these fakes.
 
-**Reproduce known work (Phase 1).** We validated B2's decode, confirmed Gillogly's anomalous strings and reproduced Wase's base-dependence analysis. The published literature checks out.
+**Reproduce known work (Phase 1).** We validated B2's decode, confirmed Gillogly's anomalous strings and reran Wase's base-dependence analysis. The decode and the Gillogly strings check out. Wase's last-digit signal (uniform outside base 10) mostly holds for B3 but not for B1, whose last digits are non-uniform in 9 of 13 bases.
 
 **Statistical classification (Phase 2).** A Monte Carlo simulation of genuine and fake cipher populations classifies B1 as ~71% fake and B3 as ~35% fake. Suggestive but inconclusive.
 
@@ -113,12 +113,12 @@ The sequential-gibberish model has one free parameter: how often the hoaxer "los
 
 We swept this parameter from 0 (never loses place, perfectly methodical) to 1 (resets every number, effectively random) and found:
 
-- **B3**: best fit at reset_prob ≈ 0.01 (very methodical, rarely lost their place)
+- **B3**: best fit at reset_prob ≈ 0.01 once the page limit is added (very methodical, rarely lost their place)
 - **B1**: best fit at reset_prob ≈ 0.65 (sloppy, lost their place two-thirds of the time)
 
 Same method, very different discipline: one hoaxer, careful the first time and careless the second.
 
-This also explains the **distinct ratio** (the percentage of unique numbers in each cipher). A methodical sequential scanner reuses numbers less often (higher distinct ratio) because they're always moving forward to new words. A sloppy scanner who keeps resetting lands on the same popular words again and again. B3's distinct ratio (43%) and B1's (57%) both fall within 1σ of what the model predicts for their reset rates.
+Reset rate barely moves the **distinct ratio** (the percentage of unique numbers in each cipher). For a B1-length cipher the model gives 55% with no resets and 59% with a reset at every step, so a methodical scanner reuses slightly more numbers. The page limit does the real work. B3 drew only on the first 975 words, so each letter had fewer homophones to choose from, and the model gets no lower than 51% for B3 until it's held to those three pages (next section). With that constraint, B3's distinct ratio (43%) and B1's (57%) both fall within 1σ of what the model predicts.
 
 #### The Physical Evidence: Page Boundaries (8d-8e)
 
@@ -143,9 +143,9 @@ With the page constraint added, the construction model matches both ciphers with
 
 #### Resolving the Gillogly Paradox (8e)
 
-For 44 years the Gillogly strings have been the strongest argument *against* the hoax hypothesis.
+The Gillogly strings have been the strongest argument *against* the hoax hypothesis since 1980.
 
-In 1980 Jim Gillogly decoded B1 with the Declaration of Independence, even though B1 is supposedly encoded with a *different*, unknown key. He expected garbage. Instead, at positions 187-203, he found a near-perfect alphabetical sequence 17 characters long: `abcdefghiijklmmno`. The probability of that appearing by chance in random text is less than 10⁻¹², essentially impossible.
+That year Jim Gillogly decoded B1 with the Declaration of Independence, even though B1 is supposedly encoded with a *different*, unknown key. He expected garbage. Instead, at positions 187-203, he found a near-perfect alphabetical sequence 17 characters long: `abcdefghiijklmmno`. The probability of that appearing by chance in random text is less than 10⁻¹², essentially impossible.
 
 Genuine-cipher proponents have played it as their ace ever since. If B1 is encoded gibberish, how can decoding it with the "wrong" key produce something so structured? The implication was that real information in B1 was somehow leaking through the wrong key.
 
