@@ -95,7 +95,7 @@ def run_b2_reset_sweep(n_sims: int = 200, seed: int = 42) -> dict:
     b2_dr = distinct_ratio(B2)["ratio"]
 
     # Build B2-frequency text generator (not fixed plaintext — need variation)
-    b2_plain_raw = B2_PLAINTEXT.replace("?", "")
+    b2_plain_raw = B2_PLAINTEXT
     letter_index = build_letter_index(BEALE_DOI)
     no_homo = set(c for c in string.ascii_lowercase if not letter_index.get(c))
     b2_freq = Counter(c for c in b2_plain_raw if c not in no_homo)
@@ -145,11 +145,15 @@ def run_b2_reset_sweep(n_sims: int = 200, seed: int = 42) -> dict:
         print(f"{rp:8.2f}  {sc_arr.mean():8.4f}  {sc_arr.std():7.4f}  {sc_z:7.2f}  "
               f"{dr_arr.mean():8.4f}  {dr_arr.std():7.4f}  {dr_z:7.2f}  {combined_z:8.2f}")
 
-    # Find best match
-    best_rp = min(results, key=lambda rp: results[rp]["combined_z"])
+    # Match on SC alone. No reset_prob comes near B2's DR (|DR z| of 17 to 29
+    # at every setting), so an argmin over combined z is decided by DR noise
+    # and moves between 0.70 and 0.99 with the seed. B2's DR is Test 2's job.
+    best_rp = min(results, key=lambda rp: abs(results[rp]["sc_z"]))
     best = results[best_rp]
-    print(f"\nBest match: reset_prob={best_rp:.2f} (combined z={best['combined_z']:.2f})")
-    print(f"  → SC z={best['sc_z']:.2f}, DR z={best['dr_z']:.2f}")
+    min_dr_z = min(abs(r["dr_z"]) for r in results.values())
+    print(f"\nBest SC match: reset_prob={best_rp:.2f} (SC z={best['sc_z']:.2f})")
+    print(f"  → DR z={best['dr_z']:.2f}; no reset_prob reproduces B2's DR "
+          f"(smallest |DR z|={min_dr_z:.1f})")
 
     # Compare to B1 (0.65) and B3 (0.01)
     print(f"\nComparison: B1 best reset_prob=0.65, B3 best reset_prob=0.01")
@@ -185,7 +189,7 @@ def run_b2_fabrication_test(n_sims: int = 1000, seed: int = 42) -> dict:
 
     # Strip x/y/z from B2 plaintext (no homophones), replace with random
     # encodable letters to maintain length
-    b2_plain = B2_PLAINTEXT.replace("?", "")
+    b2_plain = B2_PLAINTEXT
     index = build_letter_index(BEALE_DOI)
     no_homo = set(c for c in string.ascii_lowercase if not index.get(c))
     encodable_plain = "".join(
@@ -336,7 +340,7 @@ def run_homophone_fingerprint() -> dict:
     print("=" * 72)
 
     # B2: known plaintext
-    b2_plain = B2_PLAINTEXT.replace("?", "")
+    b2_plain = B2_PLAINTEXT
     # For B1/B3: decode with DoI (gibberish, but gives us the letter mapping)
     b1_plain = decode_book_cipher(B1, BEALE_DOI)
     b3_plain = decode_book_cipher(B3, BEALE_DOI)
@@ -381,22 +385,27 @@ def run_homophone_fingerprint() -> dict:
               f"sig_positive={sig}/{len(all_results[label])}")
 
     print("\nInterpretation:")
-    b2_mean = np.mean([r["spearman_r"] for r in all_results["B2"]])
-    b1_mean = np.mean([r["spearman_r"] for r in all_results["B1"]])
-    b3_mean = np.mean([r["spearman_r"] for r in all_results["B3"]])
-
-    if abs(b2_mean) < 0.1 and (b1_mean > 0.02 or b3_mean > 0.02):
-        print("  B2 shows ~zero positional correlation (random selection)")
-        print("  B1/B3 show positive correlation (sequential scanning)")
-        print("  Gradient: B2 < B1 < B3 — matches increasing methodicalness")
-        print("  → B2 used fundamentally different encoding method from B1/B3")
-    elif abs(b2_mean) < 0.1:
-        print("  All ciphers show low positional correlation")
-        print("  → Cannot distinguish encoding methods by this metric")
+    p_b1, p_b3 = fingerprint_separation(all_results)
+    print(f"  B2 vs B1 per-letter r: Mann-Whitney p={p_b1:.3f}")
+    print(f"  B2 vs B3 per-letter r: Mann-Whitney p={p_b3:.3f}")
+    if p_b1 < 0.05 and p_b3 < 0.05:
+        print("  → B2's positional correlation differs from both hoax ciphers")
     else:
-        print(f"  B2 mean_r={b2_mean:+.4f} — unexpected non-zero correlation")
+        print("  → This metric does not separate B2 from B1/B3")
 
     return all_results
+
+
+def fingerprint_separation(results: dict) -> tuple[float, float]:
+    """
+    Mann-Whitney p-values for B2's per-letter Spearman r against B1's and B3's.
+
+    Each per-letter r rests on 10-100 uses, so compare the distributions
+    rather than holding the means against fixed bars.
+    """
+    rs = {label: [r["spearman_r"] for r in results[label]] for label in ("B1", "B2", "B3")}
+    return (float(sp_stats.mannwhitneyu(rs["B2"], rs["B1"]).pvalue),
+            float(sp_stats.mannwhitneyu(rs["B2"], rs["B3"]).pvalue))
 
 
 # ============================================================================
@@ -429,7 +438,7 @@ def run_override_analysis(n_sims: int = 1000, seed: int = 42) -> dict:
               f"natural='{natural_letter}', occurs {len(positions)}x in B2)")
 
     # Count what happens at every position with an override number
-    b2_plain = B2_PLAINTEXT.replace("?", "")
+    b2_plain = B2_PLAINTEXT
     print(f"\nOverride number usage analysis:")
     override_correct = 0
     override_wrong = 0
@@ -514,7 +523,9 @@ def run_override_analysis(n_sims: int = 1000, seed: int = 42) -> dict:
     print(f"\nVerdict:")
     print(f"  B2 plaintext contains {total_forced} characters (x, y) with no DoI "
           "homophones.")
-    print(f"  The 3 SPECIAL_DECODE rules handle some of these, but not all:")
+    covered = sum(1 for i, c in enumerate(b2_plain)
+                  if c in no_homo_letters and SPECIAL_DECODE.get(B2[i]) == c)
+    print(f"  The SPECIAL_DECODE rules encode {covered} of them:")
     print(f"    - #811→'y' covers 'y' occurrences (but #811 is used {len([i for i, n in enumerate(B2) if n == 811])}x total)")
     print(f"    - #1005→'x' covers 'x' occurrences (but #1005 is used {len([i for i, n in enumerate(B2) if n == 1005])}x total)")
     print(f"    - #95→'u' is redundant ('unalienable' already starts with 'u')")
@@ -554,8 +565,8 @@ def print_summary(
     print("=" * 72)
 
     if reset_results:
-        best_rp = min(reset_results, key=lambda rp: reset_results[rp]["combined_z"])
-        print(f"\n1. Reset sweep: B2 best match at reset_prob={best_rp:.2f}")
+        best_rp = min(reset_results, key=lambda rp: abs(reset_results[rp]["sc_z"]))
+        print(f"\n1. Reset sweep: B2 best SC match at reset_prob={best_rp:.2f}")
         print(f"   (B1=0.65 sloppy, B3=0.01 methodical)")
         if best_rp >= 0.9:
             print("   → B2 consistent with RANDOM selection, not sequential scanning")
@@ -584,10 +595,11 @@ def print_summary(
         print(f"   B2 mean Spearman r: {b2_mean:+.4f}")
         print(f"   B1 mean Spearman r: {b1_mean:+.4f}")
         print(f"   B3 mean Spearman r: {b3_mean:+.4f}")
-        if abs(b2_mean) < 0.1 and (b1_mean > 0.02 or b3_mean > 0.02):
-            print("   → B2 random selection; B1/B3 sequential (gradient B2<B1<B3)")
+        p_b1, p_b3 = fingerprint_separation(fingerprint_results)
+        if p_b1 < 0.05 and p_b3 < 0.05:
+            print(f"   → B2 differs from B1 (p={p_b1:.3f}) and B3 (p={p_b3:.3f})")
         else:
-            print("   → Pattern less clear than expected")
+            print(f"   → Does not separate B2 from B1 (p={p_b1:.3f}) or B3 (p={p_b3:.3f})")
 
     if override_results:
         forced = override_results["total_forced_overrides"]
@@ -608,15 +620,16 @@ def print_summary(
     if distinguishable:
         print("  B2 CAN be statistically distinguished from random-encode fabrication.")
         if dr_z and abs(dr_z) > 10:
-            print(f"\n  KEY FINDING: B2's distinct ratio (23.6%) is dramatically lower than")
-            print(f"  random homophone selection produces (~65%, z={dr_z:.1f}).")
+            dr = fab_results["Distinct ratio"]
+            print(f"\n  KEY FINDING: B2's distinct ratio ({dr['b2']:.1%}) is dramatically lower than")
+            print(f"  random homophone selection produces ({dr['mean']:.1%}, z={dr_z:.1f}).")
             print(f"  B2 reuses the same small set of DoI word numbers heavily.")
             print(f"  This is consistent with an encoder who:")
             print(f"    - Memorized a few word positions per letter")
             print(f"    - Worked from a short section of the DoI, or")
             print(f"    - Had a personal lookup table (not the full DoI)")
-            print(f"\n  Combined with zero positional correlation (Test 3) and ad-hoc")
-            print(f"  overrides for x/y (Test 4), B2 shows a construction fingerprint")
+            print(f"\n  Combined with near-zero serial correlation (Test 1, unlike B1/B3)")
+            print(f"  and fixed x/y overrides (Test 4), B2 shows a construction fingerprint")
             print(f"  that is DIFFERENT from both B1/B3 AND from random fabrication.")
             print(f"  This supports B2 as genuinely encoded by a different method/person.")
     else:

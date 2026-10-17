@@ -176,19 +176,24 @@ SPECIAL_DECODE: dict[int, str] = {
     1005: "x",  # word 1005 = "have", decodes as 'x'
 }
 
-# The known correct B2 plaintext (with documented transcription errors).
+# The letter-level plaintext B2 encodes: one letter per cipher number, so
+# B2_PLAINTEXT[i] is the letter B2[i] was meant to encode. It is the B2 decode
+# with the encoder's four errors corrected: positions 222 and 701 (#84
+# 'created' for 'e'), 530 (#53 'respect' for 't'), 722 (#96 'rights' for 'u').
+# Ward's printed translation paraphrases the enciphered text (numerals, "one
+# thousand" for "ten hundred", "for silver"), so it cannot be aligned to B2.
 B2_PLAINTEXT = (
-    "ihavedepositedinthecountyofbedfordaboutfourmilesfrombufordsinanexcavation"
-    "orvaultsixfeetbelowthesurfaceofthegroundthefollowingarticulesbelongingjo"
-    "intlytothepar?iesnamedinpapernumberthreethefi?stdepositconsistedoftenhu"
-    "ndredandfourteenpoundsofgoldandthirtyeighthundredandtwelvepoundsofsilver"
-    "depositednov?eighteennineteenthesecondwasmadedeceighteentwentyoneandcons"
-    "istedofnineteenhundredandsevenpoyndsofgoldandfourteenhundredandtwelvepou"
-    "ndsofsilveralsojewe?sobtainedinst?ouisxnexchangetosavetranlportationand"
-    "valuedat?hirteenthousanddollarstheaboveissecurelypackediironpotswithi?on"
-    "coversthevaultisroughlylinedwithstoneanythevesselsrestonsoli?rocka?darecover"
-    "edwithotherspaperone?escribesthcexactlocalityofthevaultsolhatnodifficu?t"
-    "ywillbchadinfinditit"
+    "ihavedepositedinthecountyofbedfordaboutfourmilesfrombufordsinanexcavatio"
+    "norvaultsixfeetbelowthesurfaceofthegroundthefollowingarticlesbelongingjo"
+    "intlytothepartieswhosenamesaregiveninnumberthreeherewiththefirstdepositc"
+    "onsistedoftenhundredandfourteenpoundsofgoldandthirtyeighthundredandtwelv"
+    "epoundsofsilverdepositednoveighteennineteenthesecondwasmadedeceighteentw"
+    "entyoneandconsistedofnineteenhundredandsevenpoundsofgoldandtwelvehundred"
+    "andeightyeightofsilveralsojewelsobtainedinstlouisinexchangetosavetranspo"
+    "rtationandvaluedatthirteenthousanddollarstheaboveissecurelypackedinironp"
+    "otswithironcoversthevaultisroughlylinedwithstoneandthevesselsrestonsolid"
+    "stoneandarecoveredwithotherspapernumberonedescribestheexactlocalityofthe"
+    "vaultsothatnodifficultywillbehadinfindingit"
 )
 
 # English letter frequencies (approximate, for scoring).
@@ -1304,6 +1309,13 @@ def _self_test() -> None:
     print(f"Expected:           '{expected_19}'")
     print(f"Match: {match}")
     assert match, f"B2 decode FAILED: got '{first_19}'"
+
+    # Phases 9 and 11 pair B2_PLAINTEXT[i] with B2[i], so the constant must
+    # differ from the decode only at the four encoding errors it documents.
+    assert len(B2_PLAINTEXT) == len(B2), f"B2_PLAINTEXT has {len(B2_PLAINTEXT)} letters, B2 has {len(B2)}"
+    mismatches = [i for i, (d, p) in enumerate(zip(decoded, B2_PLAINTEXT)) if d != p]
+    assert mismatches == [222, 530, 701, 722], f"B2_PLAINTEXT misaligned at {mismatches}"
+    print("B2_PLAINTEXT alignment: PASS")
 
     # 2. Spot-check key positions
     # Verify specific word-to-letter mappings (letter matters, not specific word)

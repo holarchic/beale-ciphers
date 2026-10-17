@@ -248,7 +248,7 @@ def _recompute_dr_fabrication_pvalue(n_sims: int, seed: int) -> float:
     """P-value for B2's DR being as low as observed under random encoding."""
     rng = np.random.default_rng(seed)
     b2_dr = distinct_ratio(B2)["ratio"]
-    b2_plain = B2_PLAINTEXT.replace("?", "")
+    b2_plain = B2_PLAINTEXT
     index = build_letter_index(BEALE_DOI)
     no_homo = set(c for c in string.ascii_lowercase if not index.get(c))
     encodable_plain = "".join(
