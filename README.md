@@ -180,11 +180,11 @@ The construction model doesn't predict this. It uses a constant reset probabilit
 
 B2 is statistically distinguishable from fabrication, and **distinct ratio** (the percentage of cipher numbers that are unique) shows it most clearly. B2 uses only 180 distinct numbers for 763 positions, a distinct ratio of 23.6%. The encoder had a small set of go-to word positions for each letter and reused them heavily, as you'd expect from someone encoding from memory or a personal lookup table.
 
-Encode B2's plaintext through the DoI 1,000 times with random homophone selection and the mean distinct ratio is ~65%. B2's 23.6% is 41.5 standard deviations below that. The encoder was pulling numbers from a memorised mental index rather than scanning the page.
+Encode B2's plaintext through the DoI 1,000 times with random homophone selection and the mean distinct ratio is 64%. B2's 23.6% is 43.1 standard deviations below that. The encoder was pulling numbers from a memorised mental index rather than scanning the page.
 
-Per-letter Spearman positional correlation agrees. For each letter we check whether the numbers used for it trend upward through the cipher (a sign of sequential page scanning). B2 mean r = -0.02 (zero, random lookup), B1 mean r = +0.05 (weak sequential), B3 mean r = +0.12 (strong sequential). That's three distinct encoding behaviours, and B2's is clearly different from the hoax pattern.
+Per-letter Spearman positional correlation can't tell them apart. For each letter we check whether the numbers used for it trend upward through the cipher (a sign of sequential page scanning). B2 mean r = +0.04, B1 +0.05, B3 +0.12, and a rank test separates no pair (Mann-Whitney p = 0.78 for B2 vs B1, 0.20 for B2 vs B3). Each letter has too few uses for this metric to carry weight. The split between B2 and the hoax ciphers rests on distinct ratio and serial correlation.
 
-B2's plaintext also has 15 positions that need x or y, and neither letter has a homophone in the DoI (no word in the Declaration starts with x or y). The encoder used ad-hoc workarounds (special decode rules and what appear to be transcription errors). A hoaxer controlling the plaintext would simply avoid those letters, so their presence supports genuine forward encoding of a real message that happened to contain x's and y's.
+B2's plaintext also has 13 positions that need x or y, and neither letter has a homophone in the DoI (no word in the Declaration starts with x or y). The encoder handled every one the same way: each x is number 1005 ("have") and each y is number 811 ("fundamentally"), 13 of 13. A hoaxer controlling the plaintext would simply avoid those letters, so their presence supports genuine forward encoding of a real message that happened to contain x's and y's.
 
 ### B3 Can't Contain What It Claims To (Phase 10)
 
