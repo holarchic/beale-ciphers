@@ -2,7 +2,7 @@
 
 Statistical proof the Beale ciphers are a hoax (Bayes factor ≈ 2×10⁷), and a reconstruction of how they were faked.
 
-> **Status:** Complete (February 2026). All 11 phases are done and the findings are final. Reusable: `beale.py` (cipher data, book-cipher codecs, stats battery, English-likeness scoring) and `beale_doi_wordlist.py` (the 1,311-word Beale-variant Declaration of Independence).
+> **Status:** Complete (February 2026). All 12 phases are done and the findings are final. Reusable: `beale.py` (cipher data, book-cipher codecs, stats battery, English-likeness scoring) and `beale_doi_wordlist.py` (the 1,311-word Beale-variant Declaration of Independence).
 
 <img src="phase8_multi_metric_b1.png" width="800" alt="Six histograms comparing B1's statistics with simulated ciphers from five construction methods">
 
@@ -43,7 +43,7 @@ We combined five independent evidence streams, each with conservatively estimate
 
 ## How
 
-Phases 1-7 rule out a real cipher and Phase 8 rebuilds the hoax. Phases 9-11 test B2, B3's length, the order of construction and the statistics themselves. Each phase is one script (see [Phases](#phases)).
+Phases 1-7 and 12 rule out a real cipher and Phase 8 rebuilds the hoax. Phases 9-11 test B2, B3's length, the order of construction and the statistics themselves. Each phase is one script (see [Phases](#phases)).
 
 ### How a Book Cipher Works
 
@@ -66,7 +66,7 @@ So a genuine encoder has a **choice** for every letter, and how they make it lea
 
 B2 behaves like a genuine book cipher. B1 and B3 differ from it on bigram score, distinct ratio, serial correlation and key search, but Benford's law and last digits don't separate the three: all of them fail Benford, and B1's last digits are non-uniform in most bases, like B2's.
 
-### Due Diligence: Ruling Out a Real Cipher (Phases 1-7)
+### Due Diligence: Ruling Out a Real Cipher (Phases 1-7, 12)
 
 We tested every serious hypothesis for a real cipher before calling these fakes.
 
@@ -82,7 +82,9 @@ We tested every serious hypothesis for a real cipher before calling these fakes.
 
 **Multi-language hypothesis (Phase 7).** The plaintext could be Latin, French or Spanish. B1 and B3's DoI decodes score in the noise zone in all four languages tested (English included), so non-English plaintext is ruled out.
 
-No hypothesis for a genuine cipher survived 7 phases, 9,500+ texts, multiple cipher models and four languages. Most analyses stop here and call the ciphers "probably fake" on absence of evidence. We kept going.
+**Second-layer ciphers (Phase 12).** Pelling's double-encipherment hypothesis puts a classical cipher under the book cipher, which would make every single-layer test fail even for a real message. We brute-forced that layer on B1 and B3's DoI decodes: columnar transposition (periods 2-25, every column order up to period 6), all 157,248 invertible Hill 2×2 matrices, autokey, Vigenère and Beaufort with every key up to three letters plus thematic long keys, and the index of coincidence at periods 1-25 for longer repeating keys. No search does better on the real decodes than on shuffled letters (p ≥ 0.17 for every family), and none gets near English. The same searches recover a key planted on B2's plaintext every time. The test families come from Hsieh (2026), who ran them on the standard Declaration numbering; we use the Beale variant that B2 decodes against.
+
+No hypothesis for a genuine cipher survived 8 phases, 9,500+ texts, multiple cipher models and four languages. Most analyses stop here and call the ciphers "probably fake" on absence of evidence. We kept going.
 
 ### The Inversion: Stop Cracking, Start Building (Phase 8)
 
@@ -235,7 +237,7 @@ python3 phase11_methodology.py --all --n-sims 1000
 python3 phase8_hoax_construction.py --fatigue-test --n-sims 10000
 ```
 
-### Due diligence phases (phases 1-7)
+### Due diligence phases (phases 1-7, 12)
 
 ```bash
 # Reproduce published analyses
@@ -258,6 +260,9 @@ python3 phase6_doi_variant.py --all
 
 # Multi-language scoring
 python3 phase7_multilingual.py --build-tables && python3 phase7_multilingual.py --sweep
+
+# Second-layer ciphers: transposition, Hill 2x2, autokey/Vigenere/Beaufort, IoC by period (~7 min)
+python3 phase12_layered.py --all
 ```
 
 The cipher numbers and the Beale-variant DoI ship in the repo. Phases 4 and 7 download texts from Project Gutenberg into `.gutenberg_cache/`, and the phase 5 and phase 7 sweeps read phase 4's cache, so run phase 4 first. Nothing calls a paid service.
@@ -280,6 +285,7 @@ The cipher numbers and the Beale-variant DoI ship in the repo. Phases 4 and 7 do
 | 9 | `phase9_b2_analysis.py` | B2 construction analysis: reset sweep, fabrication test, homophone fingerprint |
 | 10 | `phase10_b3_cross_cipher.py` | B3 length feasibility, cross-cipher session analysis, construction ordering |
 | 11 | `phase11_methodology.py` | Formal Bayesian model, multiple comparison, cross-validation |
+| 12 | `phase12_layered.py` | Second-layer ciphers: columnar transposition, Hill 2×2, autokey/Vigenère/Beaufort, IoC by period |
 
 ## Limits and Prior Art
 
@@ -297,6 +303,7 @@ The page model predicts a specific printing of the Declaration (~325 words per p
 - Nickell, J. (1982). "Discovered: The Secret of Beale's Treasure." *Virginia Magazine of History and Biography* 90(3).
 - Wase, P. (2013). "The Beale Ciphers: Number-Theoretic Analysis." *Cryptologia* 37(3).
 - Pelling, N. *Cipher Mysteries* blog. Ongoing analysis of multi-layer hypothesis.
+- Hsieh, M.-Y. (2026). "A Reproducible Re-examination of Beale Ciphers B1 and B3: Systematically Closing the Composite-Cipher Hypotheses, with Methodological Cautions." *Cryptologia* 50(5), 550-561. [doi:10.1080/01611194.2026.2698071](https://doi.org/10.1080/01611194.2026.2698071). The source of Phase 12's test families.
 
 ## Open Questions and Reusable Parts
 
