@@ -936,13 +936,19 @@ def run_multi_text_key_test(n_sims: int = 1000, seed: int = 42) -> dict:
 # 11a: FORMAL BAYESIAN MODEL
 # ============================================================================
 
+class LRRange(NamedTuple):
+    """A likelihood-ratio range, hoax over genuine."""
+    lo: float
+    hi: float
+
+
 class EvidenceStream(NamedTuple):
     """One line of evidence: a likelihood-ratio range, hoax over genuine."""
     key: str
     cipher: str          # "B1", "B3" or "both"
     headline: bool       # False: appears only in labelled scenarios
     name: str
-    lr_range: tuple[float, float]
+    lr_range: LRRange
     source: str
     reason: str
 
@@ -956,7 +962,7 @@ EVIDENCE_STREAMS: tuple[EvidenceStream, ...] = (
     EvidenceStream(
         key="A", cipher="both", headline=True,
         name="No key in 9,500+ Gutenberg texts",
-        lr_range=(0.90 / 0.80, 0.98 / 0.30),
+        lr_range=LRRange(0.90 / 0.80, 0.98 / 0.30),
         source="Phases 4-7",
         reason=("P(no key found | hoax) 0.90-0.98. P(no key found | genuine) "
                 "0.30-0.80: a Lynchburg almanac, newspaper or private letter "
@@ -965,7 +971,7 @@ EVIDENCE_STREAMS: tuple[EvidenceStream, ...] = (
     EvidenceStream(
         key="B", cipher="B1", headline=True,
         name="Scan fit, gibberish over English",
-        lr_range=(10 ** 0.87, 10 ** 2.74),
+        lr_range=LRRange(10 ** 0.87, 10 ** 2.74),
         source="Phase 8d-2: phase8_hoax_construction.py --page-model --n-sims 1000 --seed 42",
         reason=("Marginal likelihood ratio under a uniform reset prior on "
                 "0.50-0.80 (interval weights). Low end English from B2's "
@@ -977,7 +983,7 @@ EVIDENCE_STREAMS: tuple[EvidenceStream, ...] = (
     EvidenceStream(
         key="B", cipher="B3", headline=True,
         name="Scan fit, gibberish over English",
-        lr_range=(10 ** 1.75, 10 ** 1.96),
+        lr_range=LRRange(10 ** 1.75, 10 ** 1.96),
         source="Phase 8d-2: phase8_hoax_construction.py --page-model --n-sims 1000 --seed 42",
         reason=("Marginal likelihood ratio under a uniform reset prior on "
                 "0.0-0.30 (interval weights), page-constrained to words 1-975. "
@@ -987,7 +993,7 @@ EVIDENCE_STREAMS: tuple[EvidenceStream, ...] = (
     EvidenceStream(
         key="E", cipher="B3", headline=True,
         name="B3 too short for its stated contents",
-        lr_range=(0.70 / 0.30, 0.90 / 0.05),
+        lr_range=LRRange(0.70 / 0.30, 0.90 / 0.05),
         source="Phase 10a",
         reason=("Names, residences and next of kin for 30 people need ~1,194 "
                 "characters in the verbose format (0 of 10,000 fit 618), but "
@@ -997,7 +1003,7 @@ EVIDENCE_STREAMS: tuple[EvidenceStream, ...] = (
     EvidenceStream(
         key="C", cipher="both", headline=False,
         name="Maxima share a factor of 325",
-        lr_range=(15.0, 250.0),
+        lr_range=LRRange(15.0, 250.0),
         source="Phase 8e / 11e",
         reason=("Cross-cipher assumption, not per-cipher evidence. B3's max "
                 "975 and B1's in-range max 1300 are 3 and 4 times 325. No "
@@ -1008,7 +1014,7 @@ EVIDENCE_STREAMS: tuple[EvidenceStream, ...] = (
     EvidenceStream(
         key="D", cipher="both", headline=False,
         name="Fatigue gradient",
-        lr_range=(0.5, 8.0),
+        lr_range=LRRange(0.5, 8.0),
         source="Phase 8f",
         reason=("Serial correlation rises Q1 to Q4 in both ciphers, but a "
                 "tired genuine encoder scanning a physical key shows the "
@@ -1037,8 +1043,8 @@ def _factor(cipher: str, include) -> Factor:
     """Bounds and geometric midpoint of one cipher's product of LR ranges."""
     chosen = [s for s in EVIDENCE_STREAMS
               if s.cipher in (cipher, "both") and include(s)]
-    lo = float(np.prod([s.lr_range[0] for s in chosen]))
-    hi = float(np.prod([s.lr_range[1] for s in chosen]))
+    lo = float(np.prod([s.lr_range.lo for s in chosen]))
+    hi = float(np.prod([s.lr_range.hi for s in chosen]))
     return Factor(lo, hi, (lo * hi) ** 0.5, tuple(s.key for s in chosen))
 
 
@@ -1048,15 +1054,15 @@ def compute_bayesian_posterior(bayes_factor: float, prior_hoax: float) -> float:
     return weighted / (weighted + (1 - prior_hoax))
 
 
-def _print_streams() -> None:
-    """Print every stream with its range, role, source and reason."""
+def _format_streams() -> str:
+    """Every stream with its range, role, source and reason."""
+    lines = []
     for s in EVIDENCE_STREAMS:
-        lo, hi = s.lr_range
         role = "headline" if s.headline else "scenario only"
-        print(f"\n  {s.key}  {s.name} [{s.cipher}, {role}]")
-        print(f"     LR {lo:.3g} to {hi:.3g}   source: {s.source}")
-        for line in textwrap.wrap(s.reason, 66):
-            print(f"     {line}")
+        lines.append(f"\n  {s.key}  {s.name} [{s.cipher}, {role}]")
+        lines.append(f"     LR {s.lr_range.lo:.3g} to {s.lr_range.hi:.3g}   source: {s.source}")
+        lines += [f"     {line}" for line in textwrap.wrap(s.reason, 66)]
+    return "\n".join(lines)
 
 
 PRIORS = (0.01, 0.10, 0.50)
@@ -1094,21 +1100,22 @@ def _cipher_report(cipher: str) -> CipherReport:
     )
 
 
-def _print_cipher_report(cipher: str, report: CipherReport) -> None:
+def _format_cipher_report(cipher: str, report: CipherReport) -> str:
     head = report.headline
-    print(f"\n  --- {cipher}: headline streams {'+'.join(head.streams)} ---")
-    print(f"  Bayes factor {head.lo:.3g} to {head.hi:.3g} "
-          f"(log10 {np.log10(head.lo):.2f} to {np.log10(head.hi):.2f}), "
-          f"midpoint {head.mid:.3g} (log10 {np.log10(head.mid):.2f})")
-    print(f"  {'prior P(hoax)':>14} {'at lower bound':>15} {'at midpoint':>12}")
-    for prior, post in report.posterior.items():
-        print(f"  {prior:>14.2f} {post.lo:>15.1%} {post.mid:>12.1%}")
-    print("  Leave-one-out at the midpoint:")
-    for key, loo in report.leave_one_out.items():
-        print(f"    without {key}: midpoint {loo.mid:.3g} (log10 {np.log10(loo.mid):.2f})")
-    print("  Scenarios:")
-    for label, f in report.scenarios.items():
-        print(f"    {label:<38} {f.lo:>9.3g} to {f.hi:<9.3g} midpoint {f.mid:.3g}")
+    lines = [f"\n  --- {cipher}: headline streams {'+'.join(head.streams)} ---",
+             f"  Bayes factor {head.lo:.3g} to {head.hi:.3g} "
+             f"(log10 {np.log10(head.lo):.2f} to {np.log10(head.hi):.2f}), "
+             f"midpoint {head.mid:.3g} (log10 {np.log10(head.mid):.2f})",
+             f"  {'prior P(hoax)':>14} {'at lower bound':>15} {'at midpoint':>12}"]
+    lines += [f"  {prior:>14.2f} {post.lo:>15.1%} {post.mid:>12.1%}"
+              for prior, post in report.posterior.items()]
+    lines.append("  Leave-one-out at the midpoint:")
+    lines += [f"    without {key}: midpoint {loo.mid:.3g} (log10 {np.log10(loo.mid):.2f})"
+              for key, loo in report.leave_one_out.items()]
+    lines.append("  Scenarios:")
+    lines += [f"    {label:<38} {f.lo:>9.3g} to {f.hi:<9.3g} midpoint {f.mid:.3g}"
+              for label, f in report.scenarios.items()]
+    return "\n".join(lines)
 
 
 def run_bayesian_model() -> dict:
@@ -1129,11 +1136,11 @@ def run_bayesian_model() -> dict:
     print("  assumed conditionally independent within each hypothesis.")
 
     print("\nEvidence streams:")
-    _print_streams()
+    print(_format_streams())
 
     factors = {cipher: _cipher_report(cipher) for cipher in ("B1", "B3")}
     for cipher, report in factors.items():
-        _print_cipher_report(cipher, report)
+        print(_format_cipher_report(cipher, report))
 
     print("\n  Gillogly strings (mechanism diagnostic, not a stream):")
     for line in textwrap.wrap(GILLOGLY_DIAGNOSTIC, 66):

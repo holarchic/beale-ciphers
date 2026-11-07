@@ -50,7 +50,7 @@ from scipy import stats as sp_stats
 from scipy.special import logsumexp
 
 from beale import (
-    B1, B2, B3, CIPHERS, BEALE_DOI, B2_PLAINTEXT, ENGLISH_FREQ, SPECIAL_DECODE,
+    B1, B2, B3, BEALE_DOI, B2_PLAINTEXT, ENGLISH_FREQ, SPECIAL_DECODE,
     benford_test, last_digit_test, distinct_ratio,
     decode_book_cipher, encode_book_cipher, encode_sequential_book_cipher,
     encode_page_constrained_book_cipher, build_letter_index,
@@ -802,8 +802,8 @@ def print_classification_matrix(
             print("  → Pure uniform random. Unlikely given non-random features.")
         elif b1_winner[0] == "english_seq":
             print("  → Consistent with a genuine English message scanned forward")
-            print("    through the DoI. Only the DoI-decode bigram score separates")
-            print("    it from gibberish, and only for English encoded with the DoI.")
+            print("    through the DoI. Its DoI decode reads as English (bigram, IoC),")
+            print("    which tells it from gibberish only for English encoded with the DoI.")
         elif b1_winner[0] == "genuine":
             print("  → Consistent with genuine encoding. But previous phases")
             print("    showed no key text produces English output.")
@@ -1190,8 +1190,8 @@ def _model_fit(label, make_plaintext, encode, grid, n_sims, rng,
 
 
 def _compare_scan_models(
-    number: int, key_words: tuple[str, ...], page_constrained: bool,
-    n_sims: int, seed: int,
+    number: int, cipher: tuple[int, ...], key_words: tuple[str, ...],
+    page_constrained: bool, n_sims: int, seed: int,
 ) -> ScanComparison:
     """Fit gibberish and two English sources to cipher B<number> over its grid.
 
@@ -1200,7 +1200,7 @@ def _compare_scan_models(
     from its own generator, keyed [seed, 8, number, model index].
     """
     name = f"B{number}"
-    cipher, grid = CIPHERS[number], SCAN_GRIDS[name]
+    grid = SCAN_GRIDS[name]
     n = len(cipher)
     if page_constrained:
         def encode(pt, p, r):
@@ -1232,30 +1232,30 @@ def _compare_scan_models(
     return ScanComparison(name, obs_sc, obs_dr, gibberish, english, ratios, edges)
 
 
-def _print_scan_cells(label: str, cells: tuple[ScanCell, ...]) -> None:
-    print(f"\n  {label}")
-    print(f"  {'reset':>7} {'SC':>7} {'DR':>7} {'SC_z':>6} {'DR_z':>6} {'log10 L':>8}")
-    for c in cells:
-        print(f"  {c.reset:>7.3f} {c.sc:>7.3f} {c.dr:>7.3f}"
-              f" {c.sc_z:>6.1f} {c.dr_z:>6.1f} {c.log10_l:>8.2f}")
+def _format_scan_cells(label: str, cells: tuple[ScanCell, ...]) -> list[str]:
+    lines = [f"\n  {label}",
+             f"  {'reset':>7} {'SC':>7} {'DR':>7} {'SC_z':>6} {'DR_z':>6} {'log10 L':>8}"]
+    lines += [f"  {c.reset:>7.3f} {c.sc:>7.3f} {c.dr:>7.3f}"
+              f" {c.sc_z:>6.1f} {c.dr_z:>6.1f} {c.log10_l:>8.2f}" for c in cells]
+    return lines
 
 
-def _print_scan_comparison(c: ScanComparison) -> None:
-    print(f"\n  --- {c.name}: observed SC={c.observed_sc:.3f}, DR={c.observed_dr:.3f} ---")
+def _format_scan_comparison(c: ScanComparison) -> str:
     models = (c.gibberish, *c.english)
+    lines = [f"\n  --- {c.name}: observed SC={c.observed_sc:.3f}, DR={c.observed_dr:.3f} ---"]
     for m in models:
-        _print_scan_cells(m.label, m.cells)
-    print(f"\n  {'Model':<28} {'best reset':>10} {'profile':>8} {'interval':>9} {'equal':>7}"
-          f"   (log10 L)")
-    for m in models:
-        print(f"  {m.label:<28} {m.fit.best_reset:>10.3f} {m.fit.profile:>8.2f}"
-              f" {m.fit.interval:>9.2f} {m.fit.equal:>7.2f}")
-    for r in c.ratios:
-        print(f"  log10 ratio, gibberish over {r.source}: "
+        lines += _format_scan_cells(m.label, m.cells)
+    lines.append(f"\n  {'Model':<28} {'best reset':>10} {'profile':>8} {'interval':>9}"
+                 f" {'equal':>7}   (log10 L)")
+    lines += [f"  {m.label:<28} {m.fit.best_reset:>10.3f} {m.fit.profile:>8.2f}"
+              f" {m.fit.interval:>9.2f} {m.fit.equal:>7.2f}" for m in models]
+    lines += [f"  log10 ratio, gibberish over {r.source}: "
               f"marginal (interval weights) {r.interval:+.2f}, "
-              f"equal weights {r.equal:+.2f}, profile {r.profile:+.2f}")
+              f"equal weights {r.equal:+.2f}, profile {r.profile:+.2f}" for r in c.ratios]
     edge = ", ".join(c.edge_models)
-    print(f"  Boundary check: {'WARNING, best cell on a grid edge for ' + edge if edge else 'clean'}")
+    lines.append(f"  Boundary check: "
+                 f"{'WARNING, best cell on a grid edge for ' + edge if edge else 'clean'}")
+    return "\n".join(lines)
 
 
 def run_scan_comparison(n_sims: int = 500, seed: int = 42) -> None:
@@ -1279,12 +1279,12 @@ def run_scan_comparison(n_sims: int = 500, seed: int = 42) -> None:
           f" B3 {SCAN_GRIDS['B3'][0]}-{SCAN_GRIDS['B3'][-1]}. Conditional on the two")
     print("  English texts and the page geometry, and on the DoI standing in for")
     print("  whatever key a genuine encoder would have scanned.")
-    for number, key_words, page_constrained in (
-        (1, BEALE_DOI, False),
-        (3, BEALE_DOI[:3 * WORDS_PER_PAGE], True),
+    for number, cipher, key_words, page_constrained in (
+        (1, B1, BEALE_DOI, False),
+        (3, B3, BEALE_DOI[:3 * WORDS_PER_PAGE], True),
     ):
-        _print_scan_comparison(
-            _compare_scan_models(number, key_words, page_constrained, n_sims, seed))
+        print(_format_scan_comparison(
+            _compare_scan_models(number, cipher, key_words, page_constrained, n_sims, seed)))
 
 
 # ============================================================================
