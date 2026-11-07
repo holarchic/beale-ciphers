@@ -37,6 +37,7 @@ import sys
 import textwrap
 import time
 from collections import Counter
+from collections.abc import Mapping
 from itertools import combinations
 from typing import NamedTuple
 
@@ -1061,38 +1062,52 @@ def _print_streams() -> None:
 PRIORS = (0.01, 0.10, 0.50)
 
 
-def _cipher_report(cipher: str) -> dict:
+class Posterior(NamedTuple):
+    """P(hoax) at a factor's lower bound, midpoint and upper bound."""
+    lo: float
+    mid: float
+    hi: float
+
+
+class CipherReport(NamedTuple):
     """One cipher's headline factor, posteriors, leave-one-out and scenarios."""
+    headline: Factor
+    posterior: Mapping[float, Posterior]
+    leave_one_out: Mapping[str, Factor]
+    scenarios: Mapping[str, Factor]
+
+
+def _cipher_report(cipher: str) -> CipherReport:
     head = _factor(cipher, lambda s: s.headline)
-    return {
-        "headline": head,
-        "posterior": {prior: {"lo": compute_bayesian_posterior(head.lo, prior),
-                              "mid": compute_bayesian_posterior(head.mid, prior)}
-                      for prior in PRIORS},
-        "leave_one_out": {key: _factor(cipher, lambda s, k=key: s.headline and s.key != k)
-                          for key in head.streams},
-        "scenarios": {
+    return CipherReport(
+        headline=head,
+        posterior={prior: Posterior(*(compute_bayesian_posterior(bf, prior)
+                                      for bf in (head.lo, head.mid, head.hi)))
+                   for prior in PRIORS},
+        leave_one_out={key: _factor(cipher, lambda s, k=key: s.headline and s.key != k)
+                       for key in head.streams},
+        scenarios={
             "headline": head,
             "headline plus C and D (assumptions)": _factor(cipher, lambda s: True),
             "headline without B": _factor(cipher, lambda s: s.headline and s.key != "B"),
         },
-    }
+    )
 
 
-def _print_cipher_report(cipher: str, report: dict) -> None:
-    head = report["headline"]
+def _print_cipher_report(cipher: str, report: CipherReport) -> None:
+    head = report.headline
     print(f"\n  --- {cipher}: headline streams {'+'.join(head.streams)} ---")
     print(f"  Bayes factor {head.lo:.3g} to {head.hi:.3g} "
           f"(log10 {np.log10(head.lo):.2f} to {np.log10(head.hi):.2f}), "
           f"midpoint {head.mid:.3g} (log10 {np.log10(head.mid):.2f})")
     print(f"  {'prior P(hoax)':>14} {'at lower bound':>15} {'at midpoint':>12}")
-    for prior, post in report["posterior"].items():
-        print(f"  {prior:>14.2f} {post['lo']:>15.1%} {post['mid']:>12.1%}")
+    for prior, post in report.posterior.items():
+        print(f"  {prior:>14.2f} {post.lo:>15.1%} {post.mid:>12.1%}")
     print("  Leave-one-out at the midpoint:")
-    for key, loo in report["leave_one_out"].items():
+    for key, loo in report.leave_one_out.items():
         print(f"    without {key}: midpoint {loo.mid:.3g} (log10 {np.log10(loo.mid):.2f})")
     print("  Scenarios:")
-    for label, f in report["scenarios"].items():
+    for label, f in report.scenarios.items():
         print(f"    {label:<38} {f.lo:>9.3g} to {f.hi:<9.3g} midpoint {f.mid:.3g}")
 
 
@@ -1156,10 +1171,10 @@ def print_summary(results: dict) -> None:
             r = results[key]
             if key == "bayesian":
                 for cipher, f in r["factors"].items():
-                    h, post = f["headline"], f["posterior"][0.5]
+                    h, post = f.headline, f.posterior[0.5]
                     print(f"  → {cipher}: Bayes factor {h.lo:.3g} to {h.hi:.3g}, "
                           f"midpoint {h.mid:.3g}; posterior at prior 0.5: "
-                          f"{post['lo']:.1%} to {compute_bayesian_posterior(h.hi, 0.5):.1%}")
+                          f"{post.lo:.1%} to {post.hi:.1%}")
                 print("  → Likelihood ranges and their reasons printed in 11a")
 
             elif key == "multiple_comparison":
