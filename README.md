@@ -16,7 +16,7 @@ Every analysis since has asked what key decrypts B1 and B3. We ran that search a
 
 The real work assumed the ciphers were faked and asked a different question. Someone at a desk in the 1880s with a printed Declaration in front of them, making up a cipher that has to pass as real: what do their numbers look like? Model that person, generate the noise they'd produce, check whether B1 and B3 match it.
 
-They do, within 1σ on serial correlation and distinct ratio. Then we ran the control: real English, encoded by the same forward scan. It fits worse, by one to three orders of magnitude in likelihood, so the numbers carry some trace of what was encoded as well as how. Two more patterns fit a person doing the job by hand. The Gillogly alphabet strings fall out of the method once the hoaxer lapses into the alphabet, and both ciphers get sloppier from start to finish.
+They do, within 1σ on serial correlation and distinct ratio. Then we ran the control: real English, encoded by the same forward scan. It fits worse, by a likelihood factor of roughly 7 to 550, so the numbers carry some trace of what was encoded as well as how. Two more patterns fit a person doing the job by hand. The Gillogly alphabet strings fall out of the method once the hoaxer lapses into the alphabet, and both ciphers get sloppier from start to finish.
 
 ## How do you fake a book cipher?
 
@@ -55,9 +55,9 @@ They do, within 1σ on serial correlation and distinct ratio. Then we ran the co
 | **B1** | 7× | 550× |
 | **B3** | 56× | 91× |
 
-**English fits worse, not impossibly worse.** For B1, English scanning matches the serial correlation but uses too many distinct numbers (61% from B2's text against B1's 57%). For B3, English matches serial correlation or distinct ratio at a given reset rate, never both at once. The gap depends a lot on which English you use, and it assumes the Declaration stands in for whatever key a genuine encoder would have scanned.
+**English fits worse, not impossibly worse.** For B1, English scanning matches the serial correlation but uses too many distinct numbers (61% from B2's text against B1's 57%). For B3, English can match both statistics within 1σ, but only at reset rates of 0.003 to 0.005, so it's much less likely across the range of reset rates the comparison allows. The gap depends a lot on which English you use, and it assumes the Declaration stands in for whatever key a genuine encoder would have scanned.
 
-**The twelve-statistic vote says something different.** Across all twelve statistics, human-made random numbers win the vote for both ciphers (7 of 12 for B1), because the digit statistics like Benford and last digits favour them. Those statistics can't see how homophones were chosen. On distinct ratio the scanning methods are closest, and only scanning gives positive serial correlation, which the reset sweep then fits.
+**The twelve-statistic classification says something different.** Human-made random numbers win the weighted vote for both ciphers. Counted metric by metric, they win 7 of 12 for B1, while sequential gibberish wins 3 of 12 for B3. Human-random's wins come from the digit statistics like Benford and last digits, which can't see how homophones were chosen. On distinct ratio the scanning methods are closest, and only scanning gives positive serial correlation, which the reset sweep then fits.
 
 ## What else fits a hand-made fake?
 
@@ -90,9 +90,9 @@ Early on they jumped around the page for variety. By the end they grabbed the ne
 
 **B3 looks too short for what B2 says it holds.** B2 says B3 lists the names, residences and next of kin of 30 people. B3 is 618 characters. Simulating that content 10,000 times with 1820s Virginia names and county-level residences gives a mean of 1,194 characters and zero fits under 618. Names alone fit at 380 though, and a terse "surname, county, kin" format gets close, so this is evidence and not proof.
 
-**The order was B2, then B3, then B1.** B2 names B3's contents, so B3 had to exist first. B3 is the careful job: reset probability 0.01, pages 1-3 only, longest Gillogly run 7. B1 is the second attempt: reset probability 0.65, all 4 pages, the 17-character run and two of 11. Each starts near zero serial correlation (B3 0.08, B1 -0.07 in the first quarter), so separate sessions, and homophone preferences are independent between them (Jaccard z = -0.4), so no shared lookup table. Anyone who has done tedious manual work twice will recognise the drop from B3 to B1.
+**Our reconstruction of the order is B2, then B3, then B1.** It's a hypothesis that fits the evidence rather than something the statistics prove. B2 names B3's contents, which fits B3 existing first. B3 is the careful job: reset probability 0.01, pages 1-3 only, longest Gillogly run 7. B1 is the second attempt: reset probability 0.65, all 4 pages, the 17-character run and two of 11. Each starts near zero serial correlation (B3 0.08, B1 -0.07 in the first quarter), so separate sessions, and homophone preferences are independent between them (Jaccard z = -0.4), so no shared lookup table. Anyone who has done tedious manual work twice will recognise the drop from B3 to B1.
 
-**A coincidence we can't weigh.** B3's highest number is 975, or 3 × 325, and B1's highest in-range number is 1,300, or 4 × 325. An 1880s octavo fits about 325 words of the Declaration per page, and 325 is the only page size from 250 to 400 that puts both ciphers on a boundary (P ≈ 0.0001). But every cipher front-loads, the genuine one included:
+**A coincidence we can't weigh.** B3's highest number is 975, or 3 × 325, and B1's highest in-range number is 1,300, or 4 × 325. An 1880s octavo fits about 325 words of the Declaration per page, and 325 is the only page size from 250 to 400 that puts both ciphers on a boundary. But every cipher front-loads, the genuine one included:
 
 | Words | 1-325 | 326-650 | 651-975 | 976-1300 | 1301-1311 | over 1311 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -134,7 +134,7 @@ B2 only reaches page 4 through its fixed x override, so stopping short of the en
 
 The posterior columns run from the factor's lower bound to its midpoint.
 
-**B3 has the stronger case on paper.** Its evidence doesn't depend on any key. B1's strongest evidence is the Gillogly strings, and they carry no weight until someone builds a likelihood for them under a genuine B1.
+**B3 has the stronger case on paper.** Both scan fits assume the Declaration stands in for a genuine encoder's key, but B3 adds length evidence that needs no key at all. B1's strongest evidence is the Gillogly strings, and they carry no weight until someone builds a likelihood for them under a genuine B1.
 
 **The scan fit carries most of the weight.** Drop it and B1's midpoint falls to about 2 and B3's to about 12. The shared factor of 325 and the fatigue gradient carry none in the headline. Count them as assumptions and the midpoints rise to about 15,000 for B1 and 110,000 for B3.
 
