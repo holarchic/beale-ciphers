@@ -39,6 +39,7 @@ import string
 import sys
 import time
 from collections import Counter
+from typing import NamedTuple
 from pathlib import Path
 
 import numpy as np
@@ -47,7 +48,7 @@ from scipy import stats as sp_stats
 from scipy.special import logsumexp
 
 from beale import (
-    B1, B2, B3, BEALE_DOI, B2_PLAINTEXT, ENGLISH_FREQ, SPECIAL_DECODE,
+    B1, B2, B3, CIPHERS, BEALE_DOI, B2_PLAINTEXT, ENGLISH_FREQ, SPECIAL_DECODE,
     benford_test, last_digit_test, distinct_ratio,
     decode_book_cipher, encode_book_cipher, encode_sequential_book_cipher,
     encode_page_constrained_book_cipher, build_letter_index,
@@ -84,6 +85,22 @@ for _c in string.ascii_lowercase:
 _DOI_LETTERS = {c for c, positions in build_letter_index(BEALE_DOI).items() if positions}
 _ENGLISH_B2 = "".join(c for c in B2_PLAINTEXT if c in _DOI_LETTERS)
 _ENGLISH_DOI = "".join(c for c in text_to_alpha(" ".join(BEALE_DOI)) if c in _DOI_LETTERS)
+
+# Page geometry of the hypothesised 4-page octavo: B3's ceiling (975) is the
+# end of page 3 at this size.
+WORDS_PER_PAGE = 325
+
+# Reset-probability grids. The page model (8d) sweeps PAGE_MODEL_GRIDS; the
+# scan comparison (8d-2) reuses them and adds B3 cells below 0.01, where
+# English scanning fits best. A grid's support is [first, last] cell.
+PAGE_MODEL_GRIDS: dict[str, tuple[float, ...]] = {
+    "B1": (0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80),
+    "B3": (0.01, 0.02, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.25, 0.30),
+}
+SCAN_GRIDS: dict[str, tuple[float, ...]] = {
+    "B1": PAGE_MODEL_GRIDS["B1"],
+    "B3": (0.0, 0.003, 0.005) + PAGE_MODEL_GRIDS["B3"],
+}
 
 
 def generate_gibberish_cipher(
@@ -170,7 +187,6 @@ def generate_populations(
     reproduce exactly at the same seed.
 
     Returns dict keyed by "{method}_{length}" with lists of cipher number sequences.
-    Also returns the actual B1/B3 for convenience.
     """
     rng = np.random.default_rng(seed)
     rng_english = np.random.default_rng([seed, 7])
@@ -955,7 +971,7 @@ def run_page_model(
     b1_best_z = 999.0
     b1_best_p = 0.0
 
-    for p in [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]:
+    for p in PAGE_MODEL_GRIDS["B1"]:
         scs, drs = [], []
         for _ in range(n_sims):
             rng = np.random.default_rng(rng_master.integers(0, 2**31))
@@ -1003,13 +1019,13 @@ def run_page_model(
     b3_best_z = 999.0
     b3_best_p = 0.0
 
-    for p in [0.01, 0.02, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.25, 0.30]:
+    for p in PAGE_MODEL_GRIDS["B3"]:
         scs, drs = [], []
         for _ in range(n_sims):
             rng = np.random.default_rng(rng_master.integers(0, 2**31))
             pt = "".join(rng.choice(avail_975, size=618, p=probs_975))
             c = encode_page_constrained_book_cipher(
-                pt, key_975, words_per_page=325, reset_prob=p, rng=rng
+                pt, key_975, words_per_page=WORDS_PER_PAGE, reset_prob=p, rng=rng
             )
             arr = np.array(c, dtype=float)
             scs.append(float(np.corrcoef(arr[:-1], arr[1:])[0, 1]))
@@ -1064,16 +1080,26 @@ def run_page_model(
 # 8d-2. SCAN-FIT COMPARISON: GIBBERISH VS ENGLISH (Phase 8d-2)
 # ============================================================================
 
-# Reset grids. B1 keeps the legacy cells. B3 adds cells below 0.01, where
-# English scanning fits best. Each grid's support is [first, last] cell.
-SCAN_GRIDS: dict[str, list[float]] = {
-    "B1": [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80],
-    "B3": [0.0, 0.003, 0.005, 0.01, 0.02, 0.03, 0.05, 0.08, 0.10,
-           0.15, 0.20, 0.25, 0.30],
-}
+class ScanCell(NamedTuple):
+    """One (model, reset) cell of the scan comparison."""
+    reset: float
+    sc: float
+    dr: float
+    sc_z: float
+    dr_z: float
+    log10_l: float
 
 
-def _interval_weights(grid: list[float]) -> np.ndarray:
+class ScanFit(NamedTuple):
+    """One model's likelihood over a reset grid, in log10."""
+    interval: float
+    equal: float
+    profile: float
+    best_reset: float
+    on_edge: bool
+
+
+def _interval_weights(grid: tuple[float, ...]) -> np.ndarray:
     """Cell weights for a continuous uniform prior on [grid[0], grid[-1]].
 
     Each cell covers the interval between the midpoints to its neighbours,
@@ -1087,78 +1113,102 @@ def _interval_weights(grid: list[float]) -> np.ndarray:
 
 def _scan_cell(
     make_plaintext, encode, reset: float, n_sims: int,
-    rng: np.random.Generator, observed: np.ndarray,
-) -> dict:
+    rng: np.random.Generator, observed_sc: float, observed_dr: float,
+) -> ScanCell:
     """Simulate one (model, reset) cell and score the observed (SC, DR) pair.
 
     The log-likelihood is synthetic: a bivariate normal (with covariance)
     fitted to the simulated (SC, DR) pairs, evaluated at the observed pair.
     """
-    sims = np.empty((n_sims, 2))
+    scs, drs = np.empty(n_sims), np.empty(n_sims)
     for i in range(n_sims):
         cipher = encode(make_plaintext(rng), reset, rng)
-        sims[i] = (serial_correlation(cipher), len(set(cipher)) / len(cipher))
-    mean, std = sims.mean(axis=0), sims.std(axis=0)
-    density = sp_stats.multivariate_normal(mean, np.cov(sims, rowvar=False))
-    return {
-        "reset": reset, "sc": mean[0], "dr": mean[1],
-        "sc_z": abs(observed[0] - mean[0]) / std[0],
-        "dr_z": abs(observed[1] - mean[1]) / std[1],
-        "log10_l": float(density.logpdf(observed)) / np.log(10),
-    }
+        scs[i] = serial_correlation(cipher)
+        drs[i] = len(set(cipher)) / len(cipher)
+    density = sp_stats.multivariate_normal(
+        [scs.mean(), drs.mean()], np.cov(np.vstack([scs, drs])))
+    return ScanCell(
+        reset=reset, sc=float(scs.mean()), dr=float(drs.mean()),
+        sc_z=abs(observed_sc - scs.mean()) / scs.std(),
+        dr_z=abs(observed_dr - drs.mean()) / drs.std(),
+        log10_l=float(density.logpdf([observed_sc, observed_dr])) / np.log(10),
+    )
 
 
-def _print_scan_model(label: str, cells: list[dict], grid: list[float]) -> dict:
-    """Print one model's grid and return its marginal and profile log10 likelihoods."""
+def _fit_over_grid(cells: list[ScanCell], grid: tuple[float, ...]) -> ScanFit:
+    """Marginal (interval and equal weights) and profile log10 likelihoods."""
+    logs = np.array([c.log10_l for c in cells]) * np.log(10)
+    best = int(np.argmax(logs))
+    return ScanFit(
+        interval=float(logsumexp(logs, b=_interval_weights(grid))) / np.log(10),
+        equal=float(logsumexp(logs, b=np.full(len(grid), 1 / len(grid)))) / np.log(10),
+        profile=float(logs[best]) / np.log(10),
+        best_reset=grid[best],
+        on_edge=(best == len(grid) - 1) or (best == 0 and grid[0] != 0.0),
+    )
+
+
+def _print_scan_cells(label: str, cells: list[ScanCell]) -> None:
     print(f"\n  {label}")
     print(f"  {'reset':>7} {'SC':>7} {'DR':>7} {'SC_z':>6} {'DR_z':>6} {'log10 L':>8}")
     for c in cells:
-        print(f"  {c['reset']:>7.3f} {c['sc']:>7.3f} {c['dr']:>7.3f}"
-              f" {c['sc_z']:>6.1f} {c['dr_z']:>6.1f} {c['log10_l']:>8.2f}")
-    logs = np.array([c["log10_l"] for c in cells]) * np.log(10)
-    best = int(np.argmax(logs))
-    on_edge = (best == len(grid) - 1) or (best == 0 and grid[0] != 0.0)
-    return {
-        "interval": float(logsumexp(logs, b=_interval_weights(grid))) / np.log(10),
-        "equal": float(logsumexp(logs, b=np.full(len(grid), 1 / len(grid)))) / np.log(10),
-        "profile": float(logs[best]) / np.log(10),
-        "best_reset": grid[best], "on_edge": on_edge,
-    }
+        print(f"  {c.reset:>7.3f} {c.sc:>7.3f} {c.dr:>7.3f}"
+              f" {c.sc_z:>6.1f} {c.dr_z:>6.1f} {c.log10_l:>8.2f}")
+
+
+def _print_scan_summary(fits: dict[str, ScanFit]) -> None:
+    print(f"\n  {'Model':<28} {'best reset':>10} {'profile':>8} {'interval':>9} {'equal':>7}"
+          f"   (log10 L)")
+    for label, f in fits.items():
+        print(f"  {label:<28} {f.best_reset:>10.3f} {f.profile:>8.2f}"
+              f" {f.interval:>9.2f} {f.equal:>7.2f}")
+    labels = list(fits)
+    gib = fits[labels[0]]
+    for label in labels[1:]:
+        eng = fits[label]
+        print(f"  log10 ratio, gibberish over {label}: "
+              f"marginal (interval weights) {gib.interval - eng.interval:+.2f}, "
+              f"equal weights {gib.equal - eng.equal:+.2f}, "
+              f"profile {gib.profile - eng.profile:+.2f}")
+    edge = [label for label, f in fits.items() if f.on_edge]
+    print(f"  Boundary check: {'WARNING, best cell on a grid edge for ' + ', '.join(edge) if edge else 'clean'}")
 
 
 def _scan_comparison_for(
-    name: str, cipher: tuple[int, ...], key_words, encode, n_sims: int, seed: int,
+    number: int, key_words: tuple[str, ...], page_constrained: bool,
+    n_sims: int, seed: int,
 ) -> None:
-    """Fit gibberish and two English sources to one cipher over its reset grid."""
-    grid, n = SCAN_GRIDS[name], len(cipher)
-    observed = np.array([serial_correlation(cipher), len(set(cipher)) / n])
+    """Fit gibberish and two English sources to cipher B<number> over its grid.
+
+    The key slice and encoder match that cipher's page model: B1 scans the
+    whole DoI, B3 stays within pages of its first three.
+    """
+    name = f"B{number}"
+    cipher, grid = CIPHERS[number], SCAN_GRIDS[name]
+    n = len(cipher)
+    if page_constrained:
+        def encode(pt, p, r):
+            return encode_page_constrained_book_cipher(
+                pt, key_words, words_per_page=WORDS_PER_PAGE, reset_prob=p, rng=r)
+    else:
+        def encode(pt, p, r):
+            return encode_sequential_book_cipher(pt, key_words, reset_prob=p, rng=r)
     avail = [c for c in string.ascii_lowercase if build_letter_index(key_words).get(c)]
     models = [
         ("Gibberish (uniform letters)", lambda r: "".join(r.choice(avail, size=n))),
         ("English, B2 plaintext", lambda r: _english_window(_ENGLISH_B2, n, r)),
         ("English, DoI text", lambda r: _english_window(_ENGLISH_DOI, n, r)),
     ]
-    print(f"\n  --- {name}: observed SC={observed[0]:.3f}, DR={observed[1]:.3f} ---")
-    summary = {}
+    obs_sc, obs_dr = serial_correlation(cipher), len(set(cipher)) / n
+    print(f"\n  --- {name}: observed SC={obs_sc:.3f}, DR={obs_dr:.3f} ---")
+    fits: dict[str, ScanFit] = {}
     for k, (label, make_plaintext) in enumerate(models):
-        rng = np.random.default_rng([seed, 8, int(name[1]), k])
-        cells = [_scan_cell(make_plaintext, encode, p, n_sims, rng, observed) for p in grid]
-        summary[label] = _print_scan_model(label, cells, grid)
-
-    print(f"\n  {'Model':<28} {'best reset':>10} {'profile':>8} {'interval':>9} {'equal':>7}"
-          f"   (log10 L)")
-    for label, s in summary.items():
-        print(f"  {label:<28} {s['best_reset']:>10.3f} {s['profile']:>8.2f}"
-              f" {s['interval']:>9.2f} {s['equal']:>7.2f}")
-    gib = summary[models[0][0]]
-    for label, _ in models[1:]:
-        eng = summary[label]
-        print(f"  log10 ratio, gibberish over {label}: "
-              f"marginal (interval weights) {gib['interval'] - eng['interval']:+.2f}, "
-              f"equal weights {gib['equal'] - eng['equal']:+.2f}, "
-              f"profile {gib['profile'] - eng['profile']:+.2f}")
-    edge = [label for label, s in summary.items() if s["on_edge"]]
-    print(f"  Boundary check: {'WARNING, best cell on a grid edge for ' + ', '.join(edge) if edge else 'clean'}")
+        rng = np.random.default_rng([seed, 8, number, k])
+        cells = [_scan_cell(make_plaintext, encode, p, n_sims, rng, obs_sc, obs_dr)
+                 for p in grid]
+        _print_scan_cells(label, cells)
+        fits[label] = _fit_over_grid(cells, grid)
+    _print_scan_summary(fits)
 
 
 def run_scan_comparison(n_sims: int = 500, seed: int = 42) -> None:
@@ -1174,24 +1224,16 @@ def run_scan_comparison(n_sims: int = 500, seed: int = 42) -> None:
     print(f"\n{'='*80}")
     print("PHASE 8d-2: SCAN-FIT COMPARISON, GIBBERISH VS ENGLISH")
     print(f"{'='*80}")
+    if n_sims < 10:
+        print(f"  Skipped: the covariance fit needs --n-sims of at least 10 (got {n_sims}).")
+        return
     print("  Synthetic likelihood: bivariate normal fitted to simulated (SC, DR).")
     print(f"  Uniform reset prior on B1 {SCAN_GRIDS['B1'][0]}-{SCAN_GRIDS['B1'][-1]},"
           f" B3 {SCAN_GRIDS['B3'][0]}-{SCAN_GRIDS['B3'][-1]}. Conditional on the two")
     print("  English texts and the page geometry, and on the DoI standing in for")
     print("  whatever key a genuine encoder would have scanned.")
-
-    key_975 = BEALE_DOI[:975]
-    _scan_comparison_for(
-        "B1", B1, BEALE_DOI,
-        lambda pt, p, r: encode_sequential_book_cipher(pt, BEALE_DOI, reset_prob=p, rng=r),
-        n_sims, seed,
-    )
-    _scan_comparison_for(
-        "B3", B3, key_975,
-        lambda pt, p, r: encode_page_constrained_book_cipher(
-            pt, key_975, words_per_page=325, reset_prob=p, rng=r),
-        n_sims, seed,
-    )
+    _scan_comparison_for(1, BEALE_DOI, False, n_sims, seed)
+    _scan_comparison_for(3, BEALE_DOI[:3 * WORDS_PER_PAGE], True, n_sims, seed)
 
 
 # ============================================================================
@@ -1212,7 +1254,7 @@ def run_page_boundary_test(
     """
     rng = np.random.default_rng(seed)
     doi_len = len(BEALE_DOI)  # 1311
-    wpp = 325  # words per page (standard 1880s octavo)
+    wpp = WORDS_PER_PAGE
     page_boundaries = [wpp * i for i in range(1, 5)]  # 325, 650, 975, 1300
 
     print(f"\n{'='*80}")
