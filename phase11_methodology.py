@@ -1,15 +1,15 @@
 """
 ---
-version: 0.1.0
+version: 0.2.0
 created: 2026-02-25
-updated: 2026-02-25
+updated: 2026-11-07
 ---
 
 phase11_methodology.py — Methodological rigor response.
 
 Addresses 9 critique items from critique.md with quantitative tests:
 
-  11a. Formal Bayesian model (critique #1: probability asserted not derived)
+  11a. Per-cipher Bayes factors from likelihood-ratio ranges (critique #1)
   11b. Multiple comparison correction (critique #2: multiple testing)
   11c. Cross-validation of Phase 8 parameters (critique #3: overfitting)
   11d. Test statistic correlation matrix (critique #4: independence assumptions)
@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import string
 import sys
+import textwrap
 import time
 from collections import Counter
 from itertools import combinations
@@ -933,196 +934,169 @@ def run_multi_text_key_test(n_sims: int = 1000, seed: int = 42) -> dict:
 # 11a: FORMAL BAYESIAN MODEL
 # ============================================================================
 
-def define_evidence_streams(correlation_results: dict | None = None) -> list[dict]:
-    """
-    Define independent evidence streams for Bayesian model.
-    Uses correlation structure from 11d if available.
-    """
-    # NOTE on likelihood calibration:
-    # P(data|hoax) = probability of observing the data IF the cipher is fabricated.
-    # P(data|genuine) = probability IF the cipher is a real encipherment.
-    # These are subjective but explicitly stated for auditability.
-    # We use CONSERVATIVE values — erring toward genuine where uncertain.
-    streams = [
-        {
-            "name": "A: Corpus failure (0/9500+ texts)",
-            "p_data_hoax": 0.95,
-            "p_data_genuine": 0.10,
-            "source": "Phases 4-7",
-            "note": ("No key text in 9,500+ Gutenberg texts produces language output. "
-                     "P(genuine)=0.10 generous — allows for lost/unpublished key text."),
-        },
-        {
-            "name": "B: Construction model fit (SC+DR)",
-            "p_data_hoax": 0.30,
-            "p_data_genuine": 0.02,
-            "source": "Phase 8d",
-            "note": ("Page-constrained model matches B1/B3 within 1σ. "
-                     "P(genuine)=0.02 — genuine cipher could have similar stats by chance."),
-        },
-        {
-            "name": "C: Page boundaries (dual hit)",
-            "p_data_hoax": 0.40,
-            "p_data_genuine": 0.007,
-            "source": "Phase 8e / 11e",
-            "note": "975=3×325, 1300=4×325; P(dual hit)≈0.007 from 11e sweep.",
-        },
-        {
-            "name": "D: Fatigue gradient",
-            "p_data_hoax": 0.15,
-            "p_data_genuine": 0.005,
-            "source": "Phase 8f",
-            "note": ("Monotonic Q1→Q4 SC rise; permutation p≤4e-8 combined. "
-                     "P(genuine)=0.005 — genuine encipherer could also fatigue."),
-        },
-        {
-            "name": "E: B3 length impossibility",
-            "p_data_hoax": 0.80,
-            "p_data_genuine": 0.01,
-            "source": "Phase 10a",
-            "note": ("618 chars for 30 names+addresses+kin (needs ~1194). "
-                     "P(genuine)=0.01 — allows for terse/abbreviated format."),
-        },
-    ]
+# Bayes factor inputs (11a). Each stream is a likelihood-ratio range, hoax over
+# genuine. Headline streams multiply into a per-cipher factor; scenario streams
+# appear only in labelled scenarios. Every range is a judgement call except B,
+# which phase 8d-2 simulates; the reason states what each end assumes.
+EVIDENCE_STREAMS: list[dict] = [
+    {
+        "key": "A", "cipher": "both", "headline": True,
+        "name": "No key in 9,500+ Gutenberg texts",
+        "lr_range": (0.90 / 0.80, 0.98 / 0.30),
+        "source": "Phases 4-7",
+        "reason": ("P(no key found | hoax) 0.90-0.98. P(no key found | genuine) "
+                   "0.30-0.80: a Lynchburg almanac, newspaper or private letter "
+                   "would not be on Gutenberg."),
+    },
+    {
+        "key": "B", "cipher": "B1", "headline": True,
+        "name": "Scan fit, gibberish over English",
+        "lr_range": (10 ** 0.87, 10 ** 2.74),
+        "source": "Phase 8d-2: phase8_hoax_construction.py --page-model --n-sims 1000 --seed 42",
+        "reason": ("Marginal likelihood ratio under a uniform reset prior on "
+                   "0.50-0.80 (interval weights). Low end English from B2's "
+                   "plaintext (+0.87 log10), high end the DoI text (+2.74); equal "
+                   "weights +0.86/+2.75. Synthetic bivariate-normal likelihood, "
+                   "conditional on the two texts and on the DoI standing in for "
+                   "a genuine encoder's key."),
+    },
+    {
+        "key": "B", "cipher": "B3", "headline": True,
+        "name": "Scan fit, gibberish over English",
+        "lr_range": (10 ** 1.75, 10 ** 1.96),
+        "source": "Phase 8d-2: phase8_hoax_construction.py --page-model --n-sims 1000 --seed 42",
+        "reason": ("Marginal likelihood ratio under a uniform reset prior on "
+                   "0.0-0.30 (interval weights), page-constrained to words 1-975. "
+                   "Low end B2's plaintext (+1.75 log10), high end the DoI text "
+                   "(+1.96); equal weights +1.38/+1.40. Same conditions as B1."),
+    },
+    {
+        "key": "E", "cipher": "B3", "headline": True,
+        "name": "B3 too short for its stated contents",
+        "lr_range": (0.70 / 0.30, 0.90 / 0.05),
+        "source": "Phase 10a",
+        "reason": ("Names, residences and next of kin for 30 people need ~1,194 "
+                   "characters in the verbose format (0 of 10,000 fit 618), but "
+                   "names alone fit at 380 and a terse format nears 618. "
+                   "P(data | hoax) 0.70-0.90, P(data | genuine) 0.05-0.30."),
+    },
+    {
+        "key": "C", "cipher": "both", "headline": False,
+        "name": "Maxima share a factor of 325",
+        "lr_range": (15.0, 250.0),
+        "source": "Phase 8e / 11e",
+        "reason": ("Cross-cipher assumption, not per-cipher evidence. B3's max "
+                   "975 and B1's in-range max 1300 are 3 and 4 times 325. No "
+                   "reproducible null accounts for choosing the maxima, the "
+                   "250-400 interval and B1's in-range restriction, and the "
+                   "pattern was noticed after the fact."),
+    },
+    {
+        "key": "D", "cipher": "both", "headline": False,
+        "name": "Fatigue gradient",
+        "lr_range": (0.5, 8.0),
+        "source": "Phase 8f",
+        "reason": ("Serial correlation rises Q1 to Q4 in both ciphers, but a "
+                   "tired genuine encoder scanning a physical key shows the "
+                   "same gradient."),
+    },
+]
 
-    # If we have correlation results, note which stats are grouped
-    if correlation_results and "groups" in correlation_results:
-        groups = correlation_results["groups"]
-        streams[1]["note"] += f"\n    (using {len(groups)} independent stat groups from 11d)"
+GILLOGLY_DIAGNOSTIC = (
+    "Phase 11f's LR_vs_rnd of 16-609 (alpha 0.6-0.8) compares alphabet-"
+    "contaminated with uniform gibberish, two hoax models, with alpha fitted "
+    "to the observed run and add-one smoothing at 1/1,001. It is not a "
+    "hoax-versus-genuine likelihood (the repo has no genuine-B1 null) and "
+    "enters no factor or scenario."
+)
 
-    return streams
+
+def _factor(cipher: str, include) -> dict:
+    """Bounds and geometric midpoint of one cipher's product of LR ranges."""
+    chosen = [s for s in EVIDENCE_STREAMS
+              if s["cipher"] in (cipher, "both") and include(s)]
+    lo = float(np.prod([s["lr_range"][0] for s in chosen]))
+    hi = float(np.prod([s["lr_range"][1] for s in chosen]))
+    return {"lo": lo, "hi": hi, "mid": (lo * hi) ** 0.5,
+            "streams": [s["key"] for s in chosen]}
 
 
-def compute_bayesian_posterior(
-    streams: list[dict],
-    prior_hoax: float,
-) -> dict:
-    """Compute posterior P(hoax) given independent evidence streams."""
-    prior_genuine = 1 - prior_hoax
+def compute_bayesian_posterior(bayes_factor: float, prior_hoax: float) -> float:
+    """Posterior P(hoax) from a Bayes factor and a prior P(hoax)."""
+    odds = prior_hoax / (1 - prior_hoax) * bayes_factor
+    return odds / (1 + odds)
 
-    # Bayes factor = product of individual LRs
-    log_bf = 0.0
-    for s in streams:
-        lr = s["p_data_hoax"] / s["p_data_genuine"]
-        log_bf += np.log(lr)
 
-    bf = np.exp(log_bf)
+def _print_streams() -> None:
+    """Print every stream with its range, role, source and reason."""
+    for s in EVIDENCE_STREAMS:
+        lo, hi = s["lr_range"]
+        role = "headline" if s["headline"] else "scenario only"
+        print(f"\n  {s['key']}  {s['name']} [{s['cipher']}, {role}]")
+        print(f"     LR {lo:.3g} to {hi:.3g}   source: {s['source']}")
+        for line in textwrap.wrap(s["reason"], 66):
+            print(f"     {line}")
 
-    # Posterior odds = prior odds × BF
-    prior_odds = prior_hoax / prior_genuine if prior_genuine > 0 else float("inf")
-    posterior_odds = prior_odds * bf
-    posterior_hoax = posterior_odds / (1 + posterior_odds)
 
-    return {
-        "prior_hoax": prior_hoax,
-        "bayes_factor": bf,
-        "log10_bf": log_bf / np.log(10),
-        "posterior_hoax": posterior_hoax,
-        "posterior_odds": posterior_odds,
+def _report_cipher(cipher: str) -> dict:
+    """Print one cipher's headline factor, priors, leave-one-out and scenarios."""
+    head = _factor(cipher, lambda s: s["headline"])
+    print(f"\n  --- {cipher}: headline streams {'+'.join(head['streams'])} ---")
+    print(f"  Bayes factor {head['lo']:.3g} to {head['hi']:.3g} "
+          f"(log10 {np.log10(head['lo']):.2f} to {np.log10(head['hi']):.2f}), "
+          f"midpoint {head['mid']:.3g} (log10 {np.log10(head['mid']):.2f})")
+
+    posterior = {}
+    print(f"  {'prior P(hoax)':>14} {'at lower bound':>15} {'at midpoint':>12}")
+    for prior in (0.01, 0.10, 0.50):
+        posterior[prior] = {"lo": compute_bayesian_posterior(head["lo"], prior),
+                            "mid": compute_bayesian_posterior(head["mid"], prior)}
+        print(f"  {prior:>14.2f} {posterior[prior]['lo']:>15.1%}"
+              f" {posterior[prior]['mid']:>12.1%}")
+
+    print("  Leave-one-out at the midpoint:")
+    for key in head["streams"]:
+        loo = _factor(cipher, lambda s, k=key: s["headline"] and s["key"] != k)
+        print(f"    without {key}: midpoint {loo['mid']:.3g} "
+              f"(log10 {np.log10(loo['mid']):.2f})")
+
+    scenarios = {
+        "headline": head,
+        "headline plus C and D (assumptions)": _factor(cipher, lambda s: True),
+        "headline without B": _factor(cipher, lambda s: s["headline"] and s["key"] != "B"),
     }
+    print("  Scenarios:")
+    for label, f in scenarios.items():
+        print(f"    {label:<38} {f['lo']:>9.3g} to {f['hi']:<9.3g} midpoint {f['mid']:.3g}")
+    return {"headline": head, "posterior": posterior, "scenarios": scenarios}
 
 
-def run_bayesian_model(
-    correlation_results: dict | None = None,
-    seed: int = 42,
-) -> dict:
+def run_bayesian_model() -> dict:
     """
-    Section 11a: Formal Bayesian model for P(hoax).
+    Section 11a: per-cipher Bayes factors from likelihood-ratio ranges.
 
-    Prior sweep from 0.1 to 0.9. Leave-one-out sensitivity analysis.
+    A subjective likelihood sensitivity analysis, not a calibrated interval:
+    the bounds multiply each headline stream's range ends and the midpoint
+    multiplies their geometric midpoints. Multiplying streams assumes
+    conditional independence within each hypothesis, which 11d's statistic
+    correlations do not test.
     """
     print("\n" + "=" * 72)
-    print("SECTION 11a: FORMAL BAYESIAN MODEL")
+    print("SECTION 11a: BAYESIAN MODEL (per cipher, likelihood-ratio ranges)")
     print("=" * 72)
+    print("\n  Subjective likelihood sensitivity analysis. Bounds are arithmetic")
+    print("  over the stated ranges, not an uncertainty interval. Streams are")
+    print("  assumed conditionally independent within each hypothesis.")
 
-    streams = define_evidence_streams(correlation_results)
+    print("\nEvidence streams:")
+    _print_streams()
 
-    # Print evidence streams
-    print(f"\nEvidence streams:")
-    for s in streams:
-        print(f"\n  {s['name']}")
-        print(f"    P(data|hoax) = {s['p_data_hoax']}")
-        print(f"    P(data|genuine) = {s['p_data_genuine']}")
-        lr = s["p_data_hoax"] / s["p_data_genuine"]
-        print(f"    LR = {lr:.1f}")
-        print(f"    Source: {s['source']}")
+    factors = {cipher: _report_cipher(cipher) for cipher in ("B1", "B3")}
 
-    # Overall Bayes factor
-    total_lr = 1.0
-    for s in streams:
-        total_lr *= s["p_data_hoax"] / s["p_data_genuine"]
-    print(f"\n  Combined Bayes Factor: {total_lr:.1f} (log10 = {np.log10(total_lr):.2f})")
-
-    # Prior sweep
-    priors = [0.01, 0.05, 0.10, 0.20, 0.30, 0.50, 0.70, 0.90]
-    print(f"\n{'Prior':>8s}  {'log10(BF)':>10s}  {'Posterior':>10s}  "
-          f"{'log10(odds)':>12s}  {'1-in-N genuine':>15s}")
-    print("-" * 65)
-
-    sweep_results = {}
-    for prior in priors:
-        result = compute_bayesian_posterior(streams, prior)
-        sweep_results[prior] = result
-        log_odds = np.log10(result["posterior_odds"]) if result["posterior_odds"] > 0 else 0
-        one_in_n = 1 + result["posterior_odds"]
-        print(f"{prior:8.2f}  {result['log10_bf']:10.2f}  "
-              f"{result['posterior_hoax']:10.8f}  {log_odds:12.1f}  "
-              f"1 in {one_in_n:.0f}")
-
-    # Leave-one-out sensitivity
-    print(f"\nLeave-one-out sensitivity (prior=0.50):")
-    print(f"{'Dropped stream':>35s}  {'log10(BF)':>10s}  {'LR dropped':>11s}  "
-          f"{'Still >99%?':>11s}")
-    print("-" * 75)
-
-    full = compute_bayesian_posterior(streams, 0.50)
-    loo_results = {}
-    for i, dropped in enumerate(streams):
-        remaining = [s for j, s in enumerate(streams) if j != i]
-        loo = compute_bayesian_posterior(remaining, 0.50)
-        dropped_lr = dropped["p_data_hoax"] / dropped["p_data_genuine"]
-        delta = full["posterior_hoax"] - loo["posterior_hoax"]
-        loo_results[dropped["name"]] = {
-            "bayes_factor": loo["bayes_factor"],
-            "log10_bf": loo["log10_bf"],
-            "posterior": loo["posterior_hoax"],
-            "delta": delta,
-        }
-        still_strong = "YES" if loo["posterior_hoax"] > 0.99 else "NO"
-        print(f"{dropped['name']:>35s}  {loo['log10_bf']:10.2f}  "
-              f"{dropped_lr:11.1f}  {still_strong:>11s}")
-
-    # Dominant stream
-    max_delta = max(loo_results.items(), key=lambda x: abs(x[1]["delta"]))
-    print(f"\n  Most influential stream: {max_delta[0]}")
-    print(f"  Dropping it changes posterior by {max_delta[1]['delta']:+.4f}")
-
-    # Compare to claimed 91-96%
-    post_50 = sweep_results[0.50]["posterior_hoax"]
-    post_30 = sweep_results[0.30]["posterior_hoax"]
-    print(f"\n  Model posterior at prior=0.50: {post_50:.1%}")
-    print(f"  Model posterior at prior=0.30: {post_30:.1%}")
-    print(f"  Previously claimed range: 91-96%")
-
-    if 0.88 <= post_50 <= 0.99:
-        print(f"  → Model broadly consistent with claimed range")
-    elif post_50 > 0.99:
-        print(f"  → Model stronger than claimed — original estimate was conservative")
-    else:
-        print(f"  → Model differs from claimed range — recalibration needed")
-
-    # Caveat
-    print(f"\n  NOTE: P(data|hypothesis) values involve judgment calls.")
-    print(f"  The model makes these explicit and auditable.")
-    print(f"  Sensitivity sweep shows conclusion is robust across reasonable priors")
-    print(f"  and stable under leave-one-out (no single stream dominates).")
-
-    return {
-        "streams": streams,
-        "bayes_factor": total_lr,
-        "prior_sweep": sweep_results,
-        "leave_one_out": loo_results,
-    }
+    print("\n  Gillogly strings (mechanism diagnostic, not a stream):")
+    for line in textwrap.wrap(GILLOGLY_DIAGNOSTIC, 66):
+        print(f"    {line}")
+    return {"factors": factors}
 
 
 # ============================================================================
@@ -1154,10 +1128,12 @@ def print_summary(results: dict) -> None:
         if key and key in results:
             r = results[key]
             if key == "bayesian":
-                bf = r.get("bayes_factor", 0)
-                post = r.get("prior_sweep", {}).get(0.5, {}).get("posterior_hoax", 0)
-                print(f"  → Bayes Factor = {bf:.1f}, posterior at prior=0.5: {post:.1%}")
-                print(f"  → Model explicit and auditable; robust across prior sweep")
+                for cipher, f in r["factors"].items():
+                    h, post = f["headline"], f["posterior"][0.5]
+                    print(f"  → {cipher}: Bayes factor {h['lo']:.3g} to {h['hi']:.3g}, "
+                          f"midpoint {h['mid']:.3g}; posterior at prior 0.5: "
+                          f"{post['lo']:.1%} to {compute_bayesian_posterior(h['hi'], 0.5):.1%}")
+                print("  → Likelihood ranges and their reasons printed in 11a")
 
             elif key == "multiple_comparison":
                 n_bonf = r.get("n_bonf_significant", 0)
@@ -1251,8 +1227,8 @@ def main() -> None:
     t0 = time.time()
     all_results: dict = {}
 
-    # Build order: 11d → 11b → 11c → 11e → 11f → 11g → 11a
-    # (11d feeds 11a; 11b feeds 11a; rest independent)
+    # Build order: 11d → 11b → 11c → 11e → 11f → 11g → 11a (all independent;
+    # 11a's ranges are constants citing the phases that produced them)
 
     if args.correlation_matrix or args.all:
         all_results["correlation_matrix"] = run_correlation_matrix(
@@ -1278,9 +1254,7 @@ def main() -> None:
             n_sims=args.n_sims, seed=args.seed)
 
     if args.bayesian or args.all:
-        corr = all_results.get("correlation_matrix")
-        all_results["bayesian"] = run_bayesian_model(
-            correlation_results=corr, seed=args.seed)
+        all_results["bayesian"] = run_bayesian_model()
 
     if args.all:
         print_summary(all_results)
