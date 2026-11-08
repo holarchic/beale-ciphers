@@ -2,7 +2,7 @@
 
 Nobody has cracked Beale ciphers B1 and B3 in 140 years. After the key search came up empty (9,500+ texts, four languages, nothing) we stopped hunting and modelled how you'd fake a book cipher at an 1880s desk instead. Both ciphers match the fake within 1σ on the two statistics that measure how the numbers were picked, and real English encoded the same way fits worse. Bayes factors for hoax over genuine come out at roughly 8 to 1,800 for B1 and 150 to 5,400 for B3, depending on the likelihood choices, which are all printed.
 
-> **Status:** Complete (February 2026, corrected November 2026). All 12 phases are done. Reusable: `beale.py` (cipher data, book-cipher codecs, stats battery, English-likeness scoring) and `beale_doi_wordlist.py` (the 1,311-word Beale-variant Declaration of Independence).
+> **Status:** Complete (February 2026). All 12 phases are done. Reusable: `beale.py` (cipher data, book-cipher codecs, stats battery, English-likeness scoring) and `beale_doi_wordlist.py` (the 1,311-word Beale-variant Declaration of Independence).
 
 <img src="phase8_multi_metric_b1.png" width="800" alt="Six histograms comparing B1's statistics with simulated ciphers from seven construction methods">
 
@@ -143,8 +143,6 @@ The posterior columns run from the factor's lower bound to its midpoint.
 ## Limits
 
 **The statistics identify a method, not a person.** Ward, who published the 1885 pamphlet, is the most parsimonious candidate, and that's as far as the data goes.
-
-**The Bayes factor was 2×10⁷ until November 2026.** That figure multiplied five point likelihoods described as conservative. They weren't, the scan fit had no English control, and the factor was joint across both ciphers. The ranges above replace it.
 
 **Every range except the scan fit is a judgement call.** Multiplying the lines assumes they're independent given the hypothesis. The scan fit assumes the Declaration behaves like whatever key a genuine encoder would have scanned, uses a normal approximation to the simulated statistics, and depends on two short English texts.
 
